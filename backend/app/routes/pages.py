@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..services.topics import (
+    get_missing_topics,
     get_or_create_topic,
     get_popular_topics,
     get_recent_topics,
@@ -98,6 +99,15 @@ async def view_topic(request: Request, slug: str, db: AsyncSession = Depends(get
             "time_ago": time_ago,
             "hero_image": hero_image,
         },
+    )
+
+
+@router.get("/suggest", response_class=HTMLResponse)
+async def suggest_page(request: Request, db: AsyncSession = Depends(get_db)):
+    missing = await get_missing_topics(db, limit=10)
+    return request.app.state.templates.TemplateResponse(
+        "pages/suggest.html",
+        {"request": request, "missing": missing},
     )
 
 

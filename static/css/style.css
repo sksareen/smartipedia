@@ -903,6 +903,97 @@ body {
     color: var(--text-muted);
 }
 
+/* ==================== SUGGEST PAGE ==================== */
+.suggest-page {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 4rem 1.5rem;
+    text-align: center;
+}
+.suggest-page h1 {
+    font-family: var(--font-serif);
+    font-size: 2rem;
+    font-weight: 400;
+    margin-bottom: 0.5rem;
+}
+.suggest-desc {
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+}
+.suggest-form {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 3rem;
+}
+.suggest-form input {
+    flex: 1;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 1rem;
+    font-family: var(--font-sans);
+    background: var(--bg-input);
+    color: var(--text);
+}
+.suggest-form input:focus {
+    outline: none;
+    border-color: var(--border-hover);
+    background: var(--bg-input-focus);
+}
+.suggest-form button {
+    padding: 0.85rem 1.5rem;
+    background: var(--text);
+    color: var(--bg);
+    border: none;
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    font-family: var(--font-sans);
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.suggest-form button:hover { opacity: 0.85; }
+.suggest-missing {
+    text-align: left;
+}
+.suggest-missing h2 {
+    font-family: var(--font-serif);
+    font-size: 1.15rem;
+    font-weight: 400;
+    margin-bottom: 0.25rem;
+}
+.suggest-missing-desc {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+}
+.suggest-missing-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.suggest-missing-item { margin: 0; }
+.suggest-missing-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.85rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    color: var(--text);
+    font-size: 0.85rem;
+    transition: border-color 0.2s;
+}
+.suggest-missing-btn:hover { border-color: var(--border-hover); }
+.suggest-missing-title { font-weight: 500; }
+.suggest-missing-count {
+    font-size: 0.7rem;
+    color: var(--text-light);
+}
+
 /* Not found */
 .not-found {
     text-align: center;

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Suggest Article — Smartipedia{% endblock %}
+
+{% block content %}
+<section class="suggest-page">
+    <h1>Suggest an Article</h1>
+    <p class="suggest-desc">Type any topic and we'll generate a sourced encyclopedia article in seconds.</p>
+
+    <form action="/generate" method="post" class="suggest-form">
+        <input type="text" name="title" placeholder="e.g. Quantum Entanglement, The Roman Empire, CRISPR..." required autofocus>
+        <button type="submit">Generate Article</button>
+    </form>
+
+    {% if missing %}
+    <div class="suggest-missing">
+        <h2>Most Requested (not yet created)</h2>
+        <p class="suggest-missing-desc">These topics were searched for but don't exist yet — be the first to create one.</p>
+        <div class="suggest-missing-grid">
+            {% for item in missing %}
+            <form action="/generate" method="post" class="suggest-missing-item">
+                <input type="hidden" name="title" value="{{ item.query }}">
+                <button type="submit" class="suggest-missing-btn">
+                    <span class="suggest-missing-title">{{ item.query }}</span>
+                    <span class="suggest-missing-count">{{ item.search_count }} searches</span>
+                </button>
+            </form>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
