@@ -17,6 +17,7 @@ dependencies = [
     "python-slugify>=8.0.0",
     "alembic>=1.13.0",
     "markdown>=3.5.0",
+    "python-multipart>=0.0.9",
 ]
 
 [tool.uv]
