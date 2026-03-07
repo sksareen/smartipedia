@@ -32,6 +32,18 @@ confident about from the sources. Example format:
 
 ```infobox
 {"Type": "Person", "Born": "June 28, 1971", "Nationality": "South African-American", "Occupation": "Engineer, entrepreneur"}
+```
+
+METADATA: Also include a JSON metadata block wrapped in a fenced code block tagged \
+`metadata`. It must contain:
+- "tags": 3-8 lowercase hyphenated tags relevant to the topic (e.g. ["quantum-physics", "computing"])
+- "category": the primary knowledge domain — one of: "Science", "Technology", "Mathematics", \
+  "History", "Society", "Arts", "Philosophy", "Health", "Economics", "Geography", "Law", "Engineering"
+- "subcategory": a more specific domain (e.g. "Quantum Physics", "Molecular Biology")
+- "difficulty": one of "beginner", "intermediate", "advanced", "expert"
+
+```metadata
+{"tags": ["quantum-physics", "computing", "qubits"], "category": "Science", "subcategory": "Quantum Physics", "difficulty": "advanced"}
 ```"""
 
 
@@ -43,11 +55,7 @@ async def generate_topic(
 ) -> dict:
     """Generate an encyclopedia article via OpenRouter.
 
-    Args:
-        openrouter_key: BYOK — agent's own OpenRouter key. Falls back to server key.
-        model: Model override. Falls back to server default.
-
-    Returns {"content_md": str, "related_topics": list[str], "summary": str, "infobox": dict, "model": str}
+    Returns {"content_md": str, "related_topics": list[str], "summary": str, "infobox": dict, "metadata": dict, "model": str}
     """
     api_key = openrouter_key or settings.openrouter_api_key
     model_id = model or settings.openrouter_model
@@ -68,7 +76,8 @@ Use these web search results as factual grounding:
 Remember to include:
 1. A "## Related Topics" section at the end with 5-8 related topics
 2. A "## Summary" section with a one-sentence summary
-3. An ```infobox``` JSON block with key structured facts"""
+3. An ```infobox``` JSON block with key structured facts
+4. A ```metadata``` JSON block with tags, category, subcategory, difficulty"""
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -103,8 +112,20 @@ Remember to include:
             infobox = json.loads(infobox_match.group(1).strip())
         except json.JSONDecodeError:
             pass
-        # Remove infobox block from content
         content = content[:infobox_match.start()] + content[infobox_match.end():]
+
+    # Parse metadata from content
+    topic_metadata = {}
+    metadata_match = re.search(r"```metadata\s*\n(.*?)\n```", content, re.DOTALL)
+    if metadata_match:
+        try:
+            topic_metadata = json.loads(metadata_match.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+        content = content[:metadata_match.start()] + content[metadata_match.end():]
+
+    # Inject default quality status
+    topic_metadata.setdefault("quality", {"status": "generated", "reviewed_by": [], "flagged_issues": []})
 
     # Parse related topics and summary from the content
     related_topics = []
@@ -137,5 +158,42 @@ Remember to include:
         "related_topics": related_topics,
         "summary": summary,
         "infobox": infobox,
+        "metadata": topic_metadata,
         "model": model_used,
     }
+
+
+async def generate_embedding(
+    text: str,
+    api_key: str | None = None,
+) -> list[float] | None:
+    """Generate a 1536-dim embedding via OpenRouter."""
+    key = api_key or settings.openrouter_api_key
+    if not key:
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://smartipedia.com",
+        "X-Title": "Smartipedia",
+    }
+
+    payload = {
+        "model": settings.embedding_model,
+        "input": text[:8000],  # truncate to stay within limits
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                "https://openrouter.ai/api/v1/embeddings",
+                headers=headers,
+                json=payload,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        return data["data"][0]["embedding"]
+    except Exception as e:
+        print(f"Embedding generation failed: {e}")
+        return None

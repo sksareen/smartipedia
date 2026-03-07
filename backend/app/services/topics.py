@@ -1,12 +1,13 @@
 import re
+from datetime import datetime, timezone
 
 import markdown
 from slugify import slugify
-from sqlalchemy import select
+from sqlalchemy import select, func as sqlfunc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import Topic, TopicLink, TopicRevision
-from .llm import generate_topic
+from ..models import SearchLog, Topic, TopicLink, TopicRevision
+from .llm import generate_embedding, generate_topic
 from .search import web_search
 
 
@@ -46,6 +47,7 @@ async def get_or_create_topic(
         content_html=content_html,
         sources=search_results,
         infobox=generated.get("infobox", {}),
+        metadata_=generated.get("metadata", {"quality": {"status": "generated", "reviewed_by": [], "flagged_issues": []}}),
         model_used=generated["model"],
         revision_number=1,
         view_count=1,
@@ -62,6 +64,11 @@ async def get_or_create_topic(
     )
     db.add(revision)
     await db.flush()
+
+    # Generate embedding (non-blocking — ok if it fails)
+    embedding = await generate_embedding(f"{title}: {generated['summary']}", openrouter_key)
+    if embedding:
+        topic.embedding = embedding
 
     # Create placeholder links for related topics
     for related_title in generated["related_topics"]:
@@ -90,12 +97,7 @@ async def update_topic(
     editor: str = "user",
     expected_revision: int | None = None,
 ) -> Topic:
-    """Update a topic's content and save a revision.
-
-    If expected_revision is provided, the update only succeeds if the topic's
-    current revision_number matches. This prevents agents from clobbering
-    each other's edits (optimistic concurrency).
-    """
+    """Update a topic's content and save a revision."""
     if expected_revision is not None and topic.revision_number != expected_revision:
         raise ConflictError(
             f"Conflict: topic is at revision {topic.revision_number}, "
@@ -131,12 +133,7 @@ async def update_topic_section(
     editor: str = "agent",
     expected_revision: int | None = None,
 ) -> Topic:
-    """Edit a single section of a topic by heading name.
-
-    Finds the section matching `section_heading` (case-insensitive) and replaces
-    its content. Other sections are untouched. This allows multiple agents to
-    edit different sections without conflicts.
-    """
+    """Edit a single section of a topic by heading name."""
     if expected_revision is not None and topic.revision_number != expected_revision:
         raise ConflictError(
             f"Conflict: topic is at revision {topic.revision_number}, "
@@ -148,7 +145,6 @@ async def update_topic_section(
     section_end = None
     heading_level = None
 
-    # Find the section
     for i, line in enumerate(lines):
         heading_match = re.match(r"^(#{1,4})\s+(.+)", line)
         if heading_match:
@@ -167,12 +163,202 @@ async def update_topic_section(
     if section_end is None:
         section_end = len(lines)
 
-    # Replace section content (keep the heading line)
     new_lines = lines[:section_start + 1] + [new_content.strip()] + [""] + lines[section_end:]
     new_md = "\n".join(new_lines)
 
     return await update_topic(db, topic, new_md, edit_summary or f"Updated section: {section_heading}", editor, expected_revision=None)
 
+
+async def review_topic(
+    db: AsyncSession,
+    topic: Topic,
+    status: str,
+    reviewer: str,
+    issues: list[str] | None = None,
+) -> Topic:
+    """Update a topic's quality status."""
+    meta = dict(topic.metadata_ or {})
+    quality = dict(meta.get("quality", {}))
+    quality["status"] = status
+    reviewed_by = list(quality.get("reviewed_by", []))
+    if reviewer not in reviewed_by:
+        reviewed_by.append(reviewer)
+    quality["reviewed_by"] = reviewed_by
+    if issues is not None:
+        quality["flagged_issues"] = issues
+    quality["last_reviewed_at"] = datetime.now(timezone.utc).isoformat()
+    meta["quality"] = quality
+    topic.metadata_ = meta
+    await db.commit()
+    await db.refresh(topic)
+    return topic
+
+
+async def flag_topic(
+    db: AsyncSession,
+    topic: Topic,
+    issue: str,
+    reporter: str,
+) -> Topic:
+    """Flag an issue on a topic."""
+    meta = dict(topic.metadata_ or {})
+    quality = dict(meta.get("quality", {}))
+    flagged = list(quality.get("flagged_issues", []))
+    entry = f"{issue} (reported by {reporter})"
+    if entry not in flagged:
+        flagged.append(entry)
+    quality["flagged_issues"] = flagged
+    if quality.get("status") == "verified":
+        quality["status"] = "disputed"
+    meta["quality"] = quality
+    topic.metadata_ = meta
+    await db.commit()
+    await db.refresh(topic)
+    return topic
+
+
+# ==================== SEARCH ====================
+
+async def search_topics(db: AsyncSession, query: str, limit: int = 20, searcher: str = "anonymous") -> list[Topic]:
+    """Full-text search across topic titles and summaries. Logs the search."""
+    result = await db.execute(
+        select(Topic)
+        .where(
+            Topic.title.ilike(f"%{query}%")
+            | Topic.summary.ilike(f"%{query}%")
+        )
+        .order_by(Topic.view_count.desc())
+        .limit(limit)
+    )
+    topics = list(result.scalars().all())
+
+    # Log the search
+    log = SearchLog(query=query, result_count=len(topics), searcher=searcher)
+    db.add(log)
+    await db.commit()
+
+    return topics
+
+
+async def semantic_search_topics(
+    db: AsyncSession,
+    query_embedding: list[float],
+    category: str | None = None,
+    difficulty: str | None = None,
+    quality_status: str | None = None,
+    min_views: int | None = None,
+    limit: int = 20,
+) -> list[Topic]:
+    """Semantic search using pgvector cosine distance with JSONB filters."""
+    stmt = select(Topic).where(Topic.embedding.isnot(None))
+
+    if category:
+        stmt = stmt.where(Topic.metadata_["category"].astext == category)
+    if difficulty:
+        stmt = stmt.where(Topic.metadata_["difficulty"].astext == difficulty)
+    if quality_status:
+        stmt = stmt.where(Topic.metadata_["quality"]["status"].astext == quality_status)
+    if min_views:
+        stmt = stmt.where(Topic.view_count >= min_views)
+
+    stmt = stmt.order_by(Topic.embedding.cosine_distance(query_embedding)).limit(limit)
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+# ==================== ANALYTICS ====================
+
+async def get_missing_topics(db: AsyncSession, limit: int = 20) -> list[dict]:
+    """Most-searched queries that returned 0 results."""
+    result = await db.execute(
+        select(
+            SearchLog.query,
+            sqlfunc.count(SearchLog.id).label("search_count"),
+        )
+        .where(SearchLog.result_count == 0)
+        .group_by(SearchLog.query)
+        .order_by(sqlfunc.count(SearchLog.id).desc())
+        .limit(limit)
+    )
+    return [{"query": row.query, "search_count": row.search_count} for row in result]
+
+
+async def get_stale_topics(db: AsyncSession, days: int = 30, limit: int = 20) -> list[Topic]:
+    """High-view topics not updated recently."""
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None)
+    from datetime import timedelta
+    cutoff = cutoff - timedelta(days=days)
+    result = await db.execute(
+        select(Topic)
+        .where(Topic.updated_at < cutoff)
+        .order_by(Topic.view_count.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def get_flagged_topics(db: AsyncSession, limit: int = 20) -> list[Topic]:
+    """Topics with quality issues flagged."""
+    result = await db.execute(
+        select(Topic)
+        .where(
+            sqlfunc.jsonb_array_length(
+                Topic.metadata_["quality"]["flagged_issues"]
+            ) > 0
+        )
+        .order_by(Topic.view_count.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def get_analytics_overview(db: AsyncSession) -> dict:
+    """Aggregated stats for the encyclopedia."""
+    topic_count = (await db.execute(select(sqlfunc.count(Topic.id)))).scalar_one()
+    search_count = (await db.execute(select(sqlfunc.count(SearchLog.id)))).scalar_one()
+    miss_count = (await db.execute(
+        select(sqlfunc.count(SearchLog.id)).where(SearchLog.result_count == 0)
+    )).scalar_one()
+    total_views = (await db.execute(select(sqlfunc.sum(Topic.view_count)))).scalar_one() or 0
+
+    return {
+        "total_topics": topic_count,
+        "total_searches": search_count,
+        "search_misses": miss_count,
+        "miss_rate": round(miss_count / max(search_count, 1) * 100, 1),
+        "total_views": total_views,
+    }
+
+
+async def get_discover_facets(db: AsyncSession) -> dict:
+    """Aggregated counts of categories, tags, difficulty levels."""
+    result = await db.execute(select(Topic.metadata_))
+    all_meta = [row[0] or {} for row in result]
+
+    categories = {}
+    difficulties = {}
+    tags = {}
+    quality_statuses = {}
+
+    for m in all_meta:
+        cat = m.get("category", "Unknown")
+        categories[cat] = categories.get(cat, 0) + 1
+        diff = m.get("difficulty", "unknown")
+        difficulties[diff] = difficulties.get(diff, 0) + 1
+        for tag in m.get("tags", []):
+            tags[tag] = tags.get(tag, 0) + 1
+        qs = m.get("quality", {}).get("status", "generated")
+        quality_statuses[qs] = quality_statuses.get(qs, 0) + 1
+
+    return {
+        "categories": dict(sorted(categories.items(), key=lambda x: -x[1])),
+        "difficulties": difficulties,
+        "top_tags": dict(sorted(tags.items(), key=lambda x: -x[1])[:30]),
+        "quality_statuses": quality_statuses,
+    }
+
+
+# ==================== QUERIES ====================
 
 async def get_topic_revisions(db: AsyncSession, topic: Topic, limit: int = 20) -> list[TopicRevision]:
     result = await db.execute(
@@ -184,22 +370,7 @@ async def get_topic_revisions(db: AsyncSession, topic: Topic, limit: int = 20) -
     return list(result.scalars().all())
 
 
-async def search_topics(db: AsyncSession, query: str, limit: int = 20) -> list[Topic]:
-    """Full-text search across topic titles and summaries."""
-    result = await db.execute(
-        select(Topic)
-        .where(
-            Topic.title.ilike(f"%{query}%")
-            | Topic.summary.ilike(f"%{query}%")
-        )
-        .order_by(Topic.view_count.desc())
-        .limit(limit)
-    )
-    return list(result.scalars().all())
-
-
 async def get_related_topics(db: AsyncSession, topic: Topic) -> list[Topic]:
-    """Get topics linked from this topic."""
     result = await db.execute(
         select(Topic)
         .join(TopicLink, TopicLink.target_id == Topic.id)
@@ -223,7 +394,6 @@ async def get_popular_topics(db: AsyncSession, limit: int = 20) -> list[Topic]:
 
 
 async def get_topic_count(db: AsyncSession) -> int:
-    from sqlalchemy import func as sqlfunc
     result = await db.execute(select(sqlfunc.count(Topic.id)))
     return result.scalar_one()
 

@@ -30,6 +30,7 @@ class Topic(Base):
     content_html = Column(Text)  # pre-rendered HTML
     sources = Column(JSONB, default=list)  # [{url, title, snippet}]
     infobox = Column(JSONB, default=dict)  # structured key-value facts for sidebar
+    metadata_ = Column("metadata", JSONB, default=dict)  # {tags, category, subcategory, difficulty, quality}
     model_used = Column(String(128))  # which LLM generated this
     embedding = Column(Vector(1536))  # for semantic similarity / graph links
     revision_number = Column(Integer, default=1, nullable=False)  # for optimistic concurrency
@@ -68,3 +69,14 @@ class TopicLink(Base):
 
     source = relationship("Topic", foreign_keys=[source_id], back_populates="outgoing_links")
     target = relationship("Topic", foreign_keys=[target_id], back_populates="incoming_links")
+
+
+class SearchLog(Base):
+    """Tracks what people search for — helps identify missing topics."""
+    __tablename__ = "search_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    query = Column(String(512), nullable=False)
+    result_count = Column(Integer, default=0)
+    searcher = Column(String(128), default="anonymous")  # agent name or "web"
+    created_at = Column(DateTime, server_default=func.now())
