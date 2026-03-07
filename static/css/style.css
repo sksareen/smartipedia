@@ -903,6 +903,157 @@ body {
     color: var(--text-muted);
 }
 
+/* ==================== STATS PAGE ==================== */
+.stats-page {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem;
+}
+.stats-page h1 {
+    font-family: var(--font-serif);
+    font-size: 2rem;
+    font-weight: 400;
+    text-align: center;
+}
+.stats-subtitle {
+    text-align: center;
+    color: var(--text-muted);
+    margin-bottom: 2.5rem;
+    font-size: 0.9rem;
+}
+.stats-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 1rem;
+    margin-bottom: 3rem;
+}
+.stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    text-align: center;
+}
+.stat-number {
+    display: block;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.2;
+}
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 0.25rem;
+    display: block;
+}
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+.stats-wide { grid-column: 1 / -1; }
+.stats-section h2 {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    font-weight: 400;
+    margin-bottom: 1rem;
+}
+.stats-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.stats-table th {
+    text-align: left;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+}
+.stats-table td {
+    padding: 0.5rem 0;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border);
+}
+.stats-table a {
+    color: var(--link-color);
+    text-decoration: none;
+}
+.stats-table a:hover { text-decoration: underline; }
+.stats-count { text-align: right; color: var(--text-muted); }
+.stats-editor { font-weight: 500; }
+.stats-empty { color: var(--text-light); font-size: 0.85rem; }
+
+/* Quality dots */
+.quality-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+}
+.quality-label { display: flex; align-items: center; gap: 0.5rem; }
+.quality-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.quality-generated { background: var(--text-light); }
+.quality-reviewed { background: #3b82f6; }
+.quality-verified { background: #22c55e; }
+.quality-disputed { background: #f59e0b; }
+.quality-outdated { background: #ef4444; }
+.quality-count { color: var(--text-muted); }
+
+/* Activity feed */
+.activity-list { display: flex; flex-direction: column; }
+.activity-item {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+}
+.activity-editor { font-weight: 500; }
+.activity-summary { color: var(--text-muted); }
+.activity-topic { color: var(--link-color); text-decoration: none; }
+.activity-topic:hover { text-decoration: underline; }
+.activity-time { color: var(--text-light); font-size: 0.75rem; margin-left: auto; }
+
+/* Missing topics in stats */
+.missing-list { display: flex; flex-direction: column; gap: 0.25rem; }
+.missing-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+}
+.missing-form { margin: 0; }
+.missing-btn {
+    background: none;
+    border: none;
+    color: var(--link-color);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: var(--font-sans);
+    padding: 0;
+}
+.missing-btn:hover { text-decoration: underline; }
+.missing-count { font-size: 0.75rem; color: var(--text-light); }
+
+@media (max-width: 768px) {
+    .stats-grid { grid-template-columns: 1fr; }
+    .stats-cards { grid-template-columns: repeat(3, 1fr); }
+}
+
 /* ==================== SUGGEST PAGE ==================== */
 .suggest-page {
     max-width: 600px;

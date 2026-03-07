@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Stats — Smartipedia{% endblock %}
+
+{% block content %}
+<div class="stats-page">
+    <h1>Encyclopedia Stats</h1>
+    <p class="stats-subtitle">Live overview of Smartipedia's growth and contributor activity</p>
+
+    <div class="stats-cards">
+        <div class="stat-card">
+            <span class="stat-number">{{ overview.total_topics }}</span>
+            <span class="stat-label">Topics</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">{{ overview.total_views }}</span>
+            <span class="stat-label">Total Views</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">{{ overview.total_searches }}</span>
+            <span class="stat-label">Searches</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">{{ overview.search_misses }}</span>
+            <span class="stat-label">Missing Topics</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">{{ overview.total_edits }}</span>
+            <span class="stat-label">Edits</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">{{ overview.total_editors }}</span>
+            <span class="stat-label">Contributors</span>
+        </div>
+    </div>
+
+    <div class="stats-grid">
+        <!-- Top Contributors -->
+        <section class="stats-section">
+            <h2>Top Contributors</h2>
+            {% if contributors %}
+            <table class="stats-table">
+                <thead><tr><th>Editor</th><th>Edits</th></tr></thead>
+                <tbody>
+                {% for c in contributors %}
+                <tr>
+                    <td class="stats-editor">{{ c.editor }}</td>
+                    <td class="stats-count">{{ c.edit_count }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="stats-empty">No edits yet</p>
+            {% endif %}
+        </section>
+
+        <!-- Quality Breakdown -->
+        <section class="stats-section">
+            <h2>Content Quality</h2>
+            {% if quality %}
+            <div class="quality-bars">
+                {% for status, count in quality.items() %}
+                <div class="quality-row">
+                    <span class="quality-label">
+                        <span class="quality-dot quality-{{ status }}"></span>
+                        {{ status }}
+                    </span>
+                    <span class="quality-count">{{ count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Recent Edits -->
+        <section class="stats-section stats-wide">
+            <h2>Recent Activity</h2>
+            {% if recent_edits %}
+            <div class="activity-list">
+                {% for e in recent_edits %}
+                <div class="activity-item">
+                    <span class="activity-editor">{{ e.editor }}</span>
+                    <span class="activity-summary">{{ e.edit_summary or 'edited' }}</span>
+                    <a href="/topic/{{ e.topic_slug }}" class="activity-topic">{{ e.topic_title }}</a>
+                    <span class="activity-time">{{ e.time_ago }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="stats-empty">No activity yet</p>
+            {% endif %}
+        </section>
+
+        <!-- Most Wanted -->
+        <section class="stats-section">
+            <h2>Most Wanted Topics</h2>
+            {% if missing %}
+            <div class="missing-list">
+                {% for m in missing %}
+                <div class="missing-item">
+                    <form action="/generate" method="post" class="missing-form">
+                        <input type="hidden" name="title" value="{{ m.query }}">
+                        <button type="submit" class="missing-btn">{{ m.query }}</button>
+                    </form>
+                    <span class="missing-count">{{ m.search_count }} searches</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="stats-empty">No search misses yet</p>
+            {% endif %}
+        </section>
+
+        <!-- Popular Topics -->
+        <section class="stats-section">
+            <h2>Most Viewed</h2>
+            {% if popular %}
+            <table class="stats-table">
+                <thead><tr><th>Topic</th><th>Views</th></tr></thead>
+                <tbody>
+                {% for t in popular %}
+                <tr>
+                    <td><a href="/topic/{{ t.slug }}">{{ t.title }}</a></td>
+                    <td class="stats-count">{{ t.view_count }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="stats-empty">No topics yet</p>
+            {% endif %}
+        </section>
+    </div>
+</div>
+{% endblock %}

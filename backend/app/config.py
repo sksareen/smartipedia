@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     openrouter_model: str = "anthropic/claude-sonnet-4"
     embedding_model: str = "openai/text-embedding-3-small"
     searxng_url: str = "http://localhost:8888"
+    umami_website_id: str = ""  # set after creating the site in Umami dashboard
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

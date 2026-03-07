@@ -8,13 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..services.topics import (
+    get_analytics_overview,
+    get_discover_facets,
     get_missing_topics,
     get_or_create_topic,
     get_popular_topics,
+    get_recent_edits,
     get_recent_topics,
     get_related_topics,
     get_topic_by_slug,
     get_topic_count,
+    get_top_contributors,
     search_topics,
     update_topic,
 )
@@ -98,6 +102,29 @@ async def view_topic(request: Request, slug: str, db: AsyncSession = Depends(get
             "infobox": infobox,
             "time_ago": time_ago,
             "hero_image": hero_image,
+        },
+    )
+
+
+@router.get("/stats", response_class=HTMLResponse)
+async def stats_page(request: Request, db: AsyncSession = Depends(get_db)):
+    overview = await get_analytics_overview(db)
+    contributors = await get_top_contributors(db)
+    recent_edits = await get_recent_edits(db, limit=15)
+    missing = await get_missing_topics(db, limit=10)
+    popular = await get_popular_topics(db, limit=10)
+    facets = await get_discover_facets(db)
+    quality = facets.get("quality_statuses", {})
+    return request.app.state.templates.TemplateResponse(
+        "pages/stats.html",
+        {
+            "request": request,
+            "overview": overview,
+            "contributors": contributors,
+            "recent_edits": recent_edits,
+            "missing": missing,
+            "popular": popular,
+            "quality": quality,
         },
     )
 

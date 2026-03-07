@@ -32,8 +32,11 @@ STATIC_DIR = BASE_DIR / "static"
 # Static files
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-# Templates
+# Templates — inject Umami globals
+from .config import settings as app_settings
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+templates.env.globals["umami_script"] = bool(app_settings.umami_website_id)
+templates.env.globals["umami_website_id"] = app_settings.umami_website_id
 
 # Routes
 app.include_router(pages.router)

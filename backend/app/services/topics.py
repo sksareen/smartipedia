@@ -320,6 +320,10 @@ async def get_analytics_overview(db: AsyncSession) -> dict:
         select(sqlfunc.count(SearchLog.id)).where(SearchLog.result_count == 0)
     )).scalar_one()
     total_views = (await db.execute(select(sqlfunc.sum(Topic.view_count)))).scalar_one() or 0
+    total_edits = (await db.execute(select(sqlfunc.count(TopicRevision.id)))).scalar_one()
+    total_editors = (await db.execute(
+        select(sqlfunc.count(sqlfunc.distinct(TopicRevision.editor)))
+    )).scalar_one()
 
     return {
         "total_topics": topic_count,
@@ -327,7 +331,51 @@ async def get_analytics_overview(db: AsyncSession) -> dict:
         "search_misses": miss_count,
         "miss_rate": round(miss_count / max(search_count, 1) * 100, 1),
         "total_views": total_views,
+        "total_edits": total_edits,
+        "total_editors": total_editors,
     }
+
+
+async def get_top_contributors(db: AsyncSession, limit: int = 15) -> list[dict]:
+    result = await db.execute(
+        select(
+            TopicRevision.editor,
+            sqlfunc.count(TopicRevision.id).label("edit_count"),
+        )
+        .group_by(TopicRevision.editor)
+        .order_by(sqlfunc.count(TopicRevision.id).desc())
+        .limit(limit)
+    )
+    return [{"editor": row.editor, "edit_count": row.edit_count} for row in result]
+
+
+async def get_recent_edits(db: AsyncSession, limit: int = 20) -> list[dict]:
+    result = await db.execute(
+        select(TopicRevision, Topic.slug, Topic.title)
+        .join(Topic, TopicRevision.topic_id == Topic.id)
+        .order_by(TopicRevision.created_at.desc())
+        .limit(limit)
+    )
+    now = datetime.now(timezone.utc)
+    edits = []
+    for row in result:
+        rev = row[0]
+        created = rev.created_at.replace(tzinfo=timezone.utc) if rev.created_at else now
+        delta = now - created
+        if delta.days > 0:
+            time_ago = f"{delta.days}d ago"
+        elif delta.seconds >= 3600:
+            time_ago = f"{delta.seconds // 3600}h ago"
+        else:
+            time_ago = f"{max(1, delta.seconds // 60)}m ago"
+        edits.append({
+            "editor": rev.editor,
+            "edit_summary": rev.edit_summary,
+            "topic_slug": row[1],
+            "topic_title": row[2],
+            "time_ago": time_ago,
+        })
+    return edits
 
 
 async def get_discover_facets(db: AsyncSession) -> dict:

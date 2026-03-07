@@ -8,6 +8,9 @@
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="/static/js/smartipedia.js"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    {% if umami_script %}
+    <script defer src="/umami/script.js" data-website-id="{{ umami_website_id }}"></script>
+    {% endif %}
 </head>
 <body>
     <div class="cosmic-bg"></div>
@@ -66,7 +69,9 @@
 
     <footer class="footer">
         <div class="footer-content">
-            <a href="https://github.com/savarsareen/smartipedia">Open Source</a>
+            <a href="/stats">Stats</a>
+            <span class="footer-sep">&middot;</span>
+            <a href="https://github.com/sksareen/smartipedia">Open Source</a>
             <span class="footer-sep">&middot;</span>
             <a href="/api/docs">API Docs</a>
             <span class="footer-sep">&middot;</span>
