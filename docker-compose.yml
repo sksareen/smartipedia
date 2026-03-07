@@ -1,0 +1,44 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8001:8000"
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      searxng:
+        condition: service_started
+    volumes:
+      - .:/app
+    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: smartipedia
+      POSTGRES_PASSWORD: smartipedia
+      POSTGRES_DB: smartipedia
+    ports:
+      - "5434:5432"
+    volumes:
+      - smartipedia_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartipedia"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  searxng:
+    image: searxng/searxng:latest
+    ports:
+      - "8888:8080"
+    volumes:
+      - ./searxng:/etc/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8888/
+
+volumes:
+  smartipedia_pgdata:

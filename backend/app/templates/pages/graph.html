@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+
+{% block title %}Knowledge Graph — Smartipedia{% endblock %}
+
+{% block content %}
+<div class="graph-page">
+    <div class="graph-header">
+        <h1>Knowledge Graph</h1>
+        <p class="graph-subtitle">Explore how topics connect across Smartipedia</p>
+    </div>
+    <div class="graph-container" id="graph-container">
+        <canvas id="graph-canvas"></canvas>
+    </div>
+    <div class="graph-tooltip" id="graph-tooltip"></div>
+</div>
+
+<script>
+(function() {
+  var canvas = document.getElementById('graph-canvas');
+  var ctx = canvas.getContext('2d');
+  var container = document.getElementById('graph-container');
+  var tooltip = document.getElementById('graph-tooltip');
+  var nodes = [];
+  var edges = [];
+  var nodeMap = {};
+  var hoveredNode = null;
+  var dragNode = null;
+  var offsetX = 0, offsetY = 0;
+  var scale = 1;
+  var panX = 0, panY = 0;
+  var isDragging = false;
+  var isPanning = false;
+  var lastMouse = {x: 0, y: 0};
+
+  function resize() {
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Knowledge tree tiers (bottom = root/matter, top = crown/consciousness)
+  // tier 0 = bottom, tier 5 = top.  x offset within tier for spread.
+  var treeLayout = {
+    // Tier 0 — Root: matter & physics
+    'the-atom':                {tier: 0, xOff: -1},
+    'energy':                  {tier: 0, xOff:  0},
+    'the-cell':                {tier: 0, xOff:  1},
+    // Tier 1 — Bridge: biology → civilization
+    'evolution':               {tier: 1, xOff:  0},
+    'quantum-computing':       {tier: 1, xOff: -1.5},
+    // Tier 2 — Heart: society & expression
+    'civilization':            {tier: 2, xOff: -1},
+    'the-internet':            {tier: 2, xOff:  1},
+    // Tier 3 — Throat/Third Eye: abstraction
+    'language':                {tier: 3, xOff: -1},
+    'mathematics':             {tier: 3, xOff:  1},
+    // Tier 4 — Bridge: intelligence
+    'artificial-intelligence': {tier: 4, xOff:  0},
+    'elon-musk':               {tier: 4, xOff:  1.5},
+    // Tier 5 — Crown: awareness
+    'consciousness':           {tier: 5, xOff:  0},
+  };
+  var totalTiers = 6;
+
+  fetch('/api/v1/graph')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var w = canvas.width, h = canvas.height;
+      var padY = h * 0.1;
+      var usableH = h - padY * 2;
+      var tierSpacing = usableH / (totalTiers - 1);
+      var xSpread = w * 0.18;
+
+      nodes = data.nodes.map(function(n, i) {
+        var layout = treeLayout[n.id];
+        var nx, ny;
+        if (layout) {
+          // Place on tree — tier 0 at bottom, tier 5 at top
+          ny = h - padY - layout.tier * tierSpacing;
+          nx = w / 2 + layout.xOff * xSpread;
+        } else {
+          // Unknown topic — place in a ring around center
+          var angle = (i / data.nodes.length) * Math.PI * 2;
+          nx = w / 2 + Math.cos(angle) * w * 0.3;
+          ny = h / 2 + Math.sin(angle) * h * 0.3;
+        }
+        // Small jitter so physics doesn't collapse identical positions
+        nx += (Math.random() - 0.5) * 20;
+        ny += (Math.random() - 0.5) * 20;
+
+        return {
+          id: n.id,
+          title: n.title,
+          summary: n.summary,
+          views: n.views,
+          x: nx, y: ny,
+          // Store home position for gentle pull
+          homeX: nx, homeY: ny,
+          vx: 0, vy: 0,
+          radius: Math.max(8, Math.min(22, 8 + Math.sqrt(n.views) * 1.5)),
+        };
+      });
+      nodes.forEach(function(n) { nodeMap[n.id] = n; });
+      edges = data.edges.filter(function(e) {
+        return nodeMap[e.source] && nodeMap[e.target];
+      });
+      simulate();
+    });
+
+  function simulate() {
+    var damping = 0.82;
+    var repulsion = 2500;
+    var attraction = 0.006;
+    var targetLen = 140;
+    var homeForce = 0.03;  // gentle pull back to tree position
+
+    function tick() {
+      // Repulsion between all nodes
+      for (var i = 0; i < nodes.length; i++) {
+        for (var j = i + 1; j < nodes.length; j++) {
+          var dx = nodes[j].x - nodes[i].x;
+          var dy = nodes[j].y - nodes[i].y;
+          var dist = Math.sqrt(dx*dx + dy*dy) || 1;
+          var force = repulsion / (dist * dist);
+          var fx = (dx / dist) * force;
+          var fy = (dy / dist) * force;
+          nodes[i].vx -= fx;
+          nodes[i].vy -= fy;
+          nodes[j].vx += fx;
+          nodes[j].vy += fy;
+        }
+      }
+      // Attraction along edges
+      edges.forEach(function(e) {
+        var s = nodeMap[e.source], t = nodeMap[e.target];
+        if (!s || !t) return;
+        var dx = t.x - s.x;
+        var dy = t.y - s.y;
+        var dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        var force = (dist - targetLen) * attraction;
+        var fx = (dx / dist) * force;
+        var fy = (dy / dist) * force;
+        s.vx += fx;
+        s.vy += fy;
+        t.vx -= fx;
+        t.vy -= fy;
+      });
+      // Home position pull — keeps tree structure loosely intact
+      nodes.forEach(function(n) {
+        if (n.homeX !== undefined) {
+          n.vx += (n.homeX - n.x) * homeForce;
+          n.vy += (n.homeY - n.y) * homeForce;
+        }
+      });
+      // Apply velocities
+      nodes.forEach(function(n) {
+        if (n === dragNode) return;
+        n.vx *= damping;
+        n.vy *= damping;
+        n.x += n.vx;
+        n.y += n.vy;
+      });
+      draw();
+      requestAnimationFrame(tick);
+    }
+    tick();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(panX, panY);
+    ctx.scale(scale, scale);
+
+    var isDark = document.documentElement.classList.contains('dark');
+    var edgeColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)';
+    var nodeColor = isDark ? '#60a5fa' : '#2563eb';
+    var nodeHoverColor = isDark ? '#93c5fd' : '#1d4ed8';
+    var textColor = isDark ? '#f3f4f6' : '#111827';
+    var bgLabel = isDark ? 'rgba(17,17,17,0.8)' : 'rgba(255,255,255,0.85)';
+    var tierLineColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+    var tierTextColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)';
+
+    // Draw tier lines and labels
+    var tierNames = ['Matter', 'Life', 'Society', 'Expression', 'Intelligence', 'Consciousness'];
+    var w = canvas.width, h = canvas.height;
+    var padY = h * 0.1;
+    var usableH = h - padY * 2;
+    var tierStep = usableH / (totalTiers - 1);
+    ctx.font = '11px ui-sans-serif, system-ui, sans-serif';
+    ctx.textBaseline = 'middle';
+    for (var ti = 0; ti < totalTiers; ti++) {
+      var ty = h - padY - ti * tierStep;
+      // Faint horizontal line
+      ctx.strokeStyle = tierLineColor;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 6]);
+      ctx.beginPath();
+      ctx.moveTo(40, ty);
+      ctx.lineTo(w - 20, ty);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Label on left
+      if (tierNames[ti]) {
+        ctx.fillStyle = tierTextColor;
+        ctx.textAlign = 'left';
+        ctx.fillText(tierNames[ti], 12, ty);
+      }
+    }
+
+    // Draw edges
+    ctx.strokeStyle = edgeColor;
+    ctx.lineWidth = 1.5;
+    edges.forEach(function(e) {
+      var s = nodeMap[e.source], t = nodeMap[e.target];
+      if (!s || !t) return;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(t.x, t.y);
+      // Highlight edges connected to hovered node
+      if (hoveredNode && (e.source === hoveredNode.id || e.target === hoveredNode.id)) {
+        ctx.strokeStyle = isDark ? 'rgba(96,165,250,0.5)' : 'rgba(37,99,235,0.35)';
+        ctx.lineWidth = 2.5;
+      } else {
+        ctx.strokeStyle = edgeColor;
+        ctx.lineWidth = 1.5;
+      }
+      ctx.stroke();
+    });
+
+    // Draw nodes
+    nodes.forEach(function(n) {
+      var isHovered = hoveredNode && hoveredNode.id === n.id;
+      var isConnected = false;
+      if (hoveredNode) {
+        edges.forEach(function(e) {
+          if ((e.source === hoveredNode.id && e.target === n.id) ||
+              (e.target === hoveredNode.id && e.source === n.id)) {
+            isConnected = true;
+          }
+        });
+      }
+
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
+      if (isHovered) {
+        ctx.fillStyle = nodeHoverColor;
+        ctx.shadowColor = nodeColor;
+        ctx.shadowBlur = 15;
+      } else if (isConnected) {
+        ctx.fillStyle = nodeColor;
+        ctx.shadowBlur = 0;
+      } else if (hoveredNode) {
+        ctx.fillStyle = isDark ? 'rgba(96,165,250,0.25)' : 'rgba(37,99,235,0.2)';
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.fillStyle = nodeColor;
+        ctx.shadowBlur = 0;
+      }
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Label
+      var showLabel = !hoveredNode || isHovered || isConnected;
+      if (showLabel) {
+        ctx.font = (isHovered ? 'bold ' : '') + '12px ui-sans-serif, system-ui, sans-serif';
+        var tw = ctx.measureText(n.title).width;
+        ctx.fillStyle = bgLabel;
+        ctx.fillRect(n.x - tw/2 - 4, n.y + n.radius + 4, tw + 8, 18);
+        ctx.fillStyle = isHovered || isConnected ? textColor : (isDark ? '#9ca3af' : '#6b7280');
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(n.title, n.x, n.y + n.radius + 7);
+      }
+    });
+
+    ctx.restore();
+  }
+
+  // Mouse interaction
+  function getNodeAt(mx, my) {
+    var x = (mx - panX) / scale;
+    var y = (my - panY) / scale;
+    for (var i = nodes.length - 1; i >= 0; i--) {
+      var n = nodes[i];
+      var dx = x - n.x, dy = y - n.y;
+      if (dx*dx + dy*dy < (n.radius + 4) * (n.radius + 4)) return n;
+    }
+    return null;
+  }
+
+  canvas.addEventListener('mousemove', function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var my = e.clientY - rect.top;
+
+    if (dragNode) {
+      dragNode.x = (mx - panX) / scale;
+      dragNode.y = (my - panY) / scale;
+      dragNode.vx = 0;
+      dragNode.vy = 0;
+      return;
+    }
+    if (isPanning) {
+      panX += mx - lastMouse.x;
+      panY += my - lastMouse.y;
+      lastMouse.x = mx;
+      lastMouse.y = my;
+      return;
+    }
+
+    var node = getNodeAt(mx, my);
+    hoveredNode = node;
+    canvas.style.cursor = node ? 'pointer' : 'grab';
+
+    if (node) {
+      tooltip.style.display = 'block';
+      tooltip.innerHTML = '<strong>' + node.title + '</strong>' +
+        (node.summary ? '<br>' + node.summary : '') +
+        '<br><span style="opacity:0.5">' + node.views + ' views — click to open</span>';
+      tooltip.style.left = (e.clientX + 12) + 'px';
+      tooltip.style.top = (e.clientY + 12) + 'px';
+    } else {
+      tooltip.style.display = 'none';
+    }
+  });
+
+  canvas.addEventListener('mousedown', function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var my = e.clientY - rect.top;
+    var node = getNodeAt(mx, my);
+    if (node) {
+      dragNode = node;
+      canvas.style.cursor = 'grabbing';
+    } else {
+      isPanning = true;
+      lastMouse.x = mx;
+      lastMouse.y = my;
+      canvas.style.cursor = 'grabbing';
+    }
+  });
+
+  canvas.addEventListener('mouseup', function() {
+    if (dragNode && !isDragging) {
+      // It was a click, not a drag
+    }
+    dragNode = null;
+    isPanning = false;
+    canvas.style.cursor = 'grab';
+  });
+
+  canvas.addEventListener('click', function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var my = e.clientY - rect.top;
+    var node = getNodeAt(mx, my);
+    if (node) {
+      window.location.href = '/topic/' + node.id;
+    }
+  });
+
+  canvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    var rect = canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var my = e.clientY - rect.top;
+    var delta = e.deltaY > 0 ? 0.9 : 1.1;
+    var newScale = scale * delta;
+    if (newScale < 0.2 || newScale > 5) return;
+    panX = mx - (mx - panX) * delta;
+    panY = my - (my - panY) * delta;
+    scale = newScale;
+  }, {passive: false});
+
+  canvas.addEventListener('mouseleave', function() {
+    tooltip.style.display = 'none';
+    hoveredNode = null;
+  });
+})();
+</script>
+{% endblock %}

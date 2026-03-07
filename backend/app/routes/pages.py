@@ -1,0 +1,156 @@
+import json
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from slugify import slugify
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..database import get_db
+from ..services.topics import (
+    get_or_create_topic,
+    get_popular_topics,
+    get_recent_topics,
+    get_related_topics,
+    get_topic_by_slug,
+    get_topic_count,
+    search_topics,
+    update_topic,
+)
+
+router = APIRouter()
+
+
+@router.get("/", response_class=HTMLResponse)
+async def home(request: Request, db: AsyncSession = Depends(get_db)):
+    recent = await get_recent_topics(db, limit=12)
+    popular = await get_popular_topics(db, limit=12)
+    count = await get_topic_count(db)
+    return request.app.state.templates.TemplateResponse(
+        "pages/home.html",
+        {"request": request, "recent": recent, "popular": popular, "topic_count": count},
+    )
+
+
+@router.get("/search", response_class=HTMLResponse)
+async def search_page(request: Request, q: str = "", db: AsyncSession = Depends(get_db)):
+    results = []
+    if q:
+        results = await search_topics(db, q)
+    is_htmx = request.headers.get("HX-Request") == "true"
+    if is_htmx:
+        return request.app.state.templates.TemplateResponse(
+            "components/search_results.html",
+            {"request": request, "results": results, "query": q},
+        )
+    return request.app.state.templates.TemplateResponse(
+        "pages/search.html",
+        {"request": request, "results": results, "query": q},
+    )
+
+
+@router.get("/topic/{slug}", response_class=HTMLResponse)
+async def view_topic(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    topic = await get_topic_by_slug(db, slug)
+    if not topic:
+        return request.app.state.templates.TemplateResponse(
+            "pages/topic_not_found.html",
+            {"request": request, "slug": slug},
+            status_code=404,
+        )
+    topic.view_count += 1
+    await db.commit()
+    await db.refresh(topic)
+    related = await get_related_topics(db, topic)
+    sources_json = json.dumps(topic.sources or [])
+    related_json = json.dumps([
+        {"slug": r.slug, "title": r.title, "summary": r.summary or ""}
+        for r in related
+    ])
+    infobox = topic.infobox or {}
+    # Compute relative time
+    now = datetime.now(timezone.utc)
+    created = topic.created_at.replace(tzinfo=timezone.utc) if topic.created_at else now
+    updated = topic.updated_at.replace(tzinfo=timezone.utc) if topic.updated_at else created
+    delta = now - updated
+    if delta.days > 0:
+        time_ago = f"{delta.days} day{'s' if delta.days != 1 else ''} ago"
+    elif delta.seconds >= 3600:
+        hours = delta.seconds // 3600
+        time_ago = f"{hours} hour{'s' if hours != 1 else ''} ago"
+    else:
+        mins = max(1, delta.seconds // 60)
+        time_ago = f"{mins} minute{'s' if mins != 1 else ''} ago"
+
+    # Hero image: use first source image or Unsplash fallback
+    from urllib.parse import quote
+    hero_image = f"https://source.unsplash.com/800x350/?{quote(topic.title)}"
+
+    return request.app.state.templates.TemplateResponse(
+        "pages/topic.html",
+        {
+            "request": request,
+            "topic": topic,
+            "related": related,
+            "sources_json": sources_json,
+            "related_json": related_json,
+            "infobox": infobox,
+            "time_ago": time_ago,
+            "hero_image": hero_image,
+        },
+    )
+
+
+@router.get("/graph", response_class=HTMLResponse)
+async def graph_page(request: Request):
+    return request.app.state.templates.TemplateResponse(
+        "pages/graph.html",
+        {"request": request},
+    )
+
+
+@router.get("/api/quick-search", response_class=HTMLResponse)
+async def quick_search(request: Request, q: str = "", db: AsyncSession = Depends(get_db)):
+    """HTMX endpoint for Cmd+K search modal."""
+    results = []
+    if q and len(q) >= 2:
+        results = await search_topics(db, q, limit=8)
+    return request.app.state.templates.TemplateResponse(
+        "components/quick_search_results.html",
+        {"request": request, "results": results, "query": q},
+    )
+
+
+@router.post("/generate", response_class=HTMLResponse)
+async def generate_page(request: Request, db: AsyncSession = Depends(get_db)):
+    form = await request.form()
+    title = form.get("title", "").strip()
+    if not title:
+        return RedirectResponse("/", status_code=303)
+    slug = slugify(title, max_length=512)
+    topic, created = await get_or_create_topic(db, title)
+    return RedirectResponse(f"/topic/{topic.slug}", status_code=303)
+
+
+@router.get("/topic/{slug}/edit", response_class=HTMLResponse)
+async def edit_topic_page(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    topic = await get_topic_by_slug(db, slug)
+    if not topic:
+        return RedirectResponse("/", status_code=303)
+    return request.app.state.templates.TemplateResponse(
+        "pages/edit.html",
+        {"request": request, "topic": topic},
+    )
+
+
+@router.post("/topic/{slug}/edit", response_class=HTMLResponse)
+async def save_topic_edit(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    topic = await get_topic_by_slug(db, slug)
+    if not topic:
+        return RedirectResponse("/", status_code=303)
+    form = await request.form()
+    content_md = form.get("content_md", "")
+    edit_summary = form.get("edit_summary", "")
+    editor = form.get("editor", "user")
+    await update_topic(db, topic, content_md, edit_summary, editor)
+    return RedirectResponse(f"/topic/{topic.slug}", status_code=303)

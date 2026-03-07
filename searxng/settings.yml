@@ -1,0 +1,39 @@
+use_default_settings: true
+
+general:
+  instance_name: "Smartipedia Search"
+
+search:
+  safe_search: 0
+  default_lang: "en"
+
+server:
+  secret_key: "change-me-in-production"
+  limiter: false
+  image_proxy: false
+  method: "GET"
+
+search:
+  formats:
+    - html
+    - json
+
+ui:
+  static_use_hash: true
+
+engines:
+  - name: google
+    engine: google
+    shortcut: g
+
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+
+  - name: brave
+    engine: brave
+    shortcut: br
+
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp

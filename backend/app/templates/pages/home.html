@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Smartipedia — Open-Source AI Encyclopedia{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div class="hero-content">
+        <div class="hero-header">
+            <h1>Smartipedia</h1>
+            <span class="version-badge">v0.2</span>
+        </div>
+
+        <form action="/generate" method="post" class="hero-search">
+            <input type="text" name="title" placeholder="Search Smartipedia..." required autofocus>
+            <button type="submit">Generate</button>
+        </form>
+
+        <div class="article-count">
+            <p class="article-count-label">Articles Available</p>
+            <p class="article-count-number">{{ topic_count }}</p>
+        </div>
+    </div>
+</section>
+
+{% if popular %}
+<div class="inner-container">
+    <section class="topic-section">
+        <h2>Popular</h2>
+        <div class="topic-grid">
+            {% for topic in popular %}
+            <a href="/topic/{{ topic.slug }}" class="topic-card">
+                <h3>{{ topic.title }}</h3>
+                <p>{{ topic.summary or '' }}</p>
+                <span class="topic-views">{{ topic.view_count }} views</span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endif %}
+
+{% if recent %}
+<div class="inner-container">
+    <section class="topic-section">
+        <h2>Recently Created</h2>
+        <div class="topic-grid">
+            {% for topic in recent %}
+            <a href="/topic/{{ topic.slug }}" class="topic-card">
+                <h3>{{ topic.title }}</h3>
+                <p>{{ topic.summary or '' }}</p>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endif %}
+{% endblock %}

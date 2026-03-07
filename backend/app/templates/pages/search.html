@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Search: {{ query }} — Smartipedia{% endblock %}
+
+{% block content %}
+<section class="search-page">
+    <h1>Search results for "{{ query }}"</h1>
+
+    {% if results %}
+    <div class="search-results">
+        {% for topic in results %}
+        <a href="/topic/{{ topic.slug }}" class="search-result">
+            <h3>{{ topic.title }}</h3>
+            <p>{{ topic.summary or '' }}</p>
+        </a>
+        {% endfor %}
+    </div>
+    {% elif query %}
+    <div class="no-results">
+        <p>No existing topics match "{{ query }}". Want to create one?</p>
+        <form action="/generate" method="post" class="hero-form">
+            <input type="text" name="title" value="{{ query }}" required>
+            <button type="submit">Generate Article</button>
+        </form>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

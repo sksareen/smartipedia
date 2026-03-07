@@ -1,0 +1,16 @@
+{% if results %}
+{% for topic in results %}
+<a href="/topic/{{ topic.slug }}" class="cmdk-result">
+    <span class="cmdk-result-title">{{ topic.title }}</span>
+    <span class="cmdk-result-summary">{{ topic.summary or '' }}</span>
+</a>
+{% endfor %}
+{% elif query and query|length >= 2 %}
+<div class="cmdk-no-results">
+    <p>No results for "{{ query }}"</p>
+    <form action="/generate" method="post" class="cmdk-generate">
+        <input type="hidden" name="title" value="{{ query }}">
+        <button type="submit">Generate "{{ query }}"</button>
+    </form>
+</div>
+{% endif %}

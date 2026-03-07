@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Edit: {{ topic.title }} — Smartipedia{% endblock %}
+
+{% block content %}
+<section class="edit-page">
+    <h1>Editing: {{ topic.title }}</h1>
+    <form action="/topic/{{ topic.slug }}/edit" method="post" class="edit-form">
+        <textarea name="content_md" rows="30">{{ topic.content_md }}</textarea>
+        <div class="edit-controls">
+            <input type="text" name="edit_summary" placeholder="Edit summary (optional)">
+            <input type="hidden" name="editor" value="user">
+            <div class="edit-buttons">
+                <a href="/topic/{{ topic.slug }}" class="btn-cancel">Cancel</a>
+                <button type="submit" class="btn-save">Save Changes</button>
+            </div>
+        </div>
+    </form>
+</section>
+{% endblock %}
