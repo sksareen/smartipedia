@@ -221,6 +221,10 @@ body {
     justify-content: center;
     padding: 2rem 1rem;
 }
+.hero.hero-compact {
+    min-height: auto;
+    padding: 4rem 1rem 2rem;
+}
 .hero-content {
     text-align: center;
     max-width: 800px;
@@ -230,7 +234,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 3rem;
+    margin-bottom: 0.75rem;
 }
 .hero h1 {
     font-family: var(--font-serif);
@@ -244,11 +248,16 @@ body {
     padding: 0.25rem 0.75rem;
     font-size: 0.875rem;
 }
+.hero-subtitle {
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    margin-bottom: 2rem;
+}
 
 /* Search bar */
 .hero-search {
     max-width: 600px;
-    margin: 0 auto 3rem;
+    margin: 0 auto 2rem;
     position: relative;
 }
 .hero-search input {
@@ -270,7 +279,33 @@ body {
 }
 .hero-search button { display: none; }
 
-/* Article count */
+/* Hero stats row */
+.hero-stats {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+}
+.hero-stat { text-align: center; }
+.hero-stat-number {
+    display: block;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text);
+}
+.hero-stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.hero-stat-sep {
+    width: 1px;
+    height: 28px;
+    background: var(--border);
+}
+
+/* Article count (legacy, used on other pages) */
 .article-count { margin-top: 2rem; }
 .article-count-label {
     font-size: 0.875rem;
