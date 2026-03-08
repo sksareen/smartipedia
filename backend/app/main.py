@@ -84,12 +84,39 @@ async def robots_txt():
     return PlainTextResponse(
         "User-agent: *\n"
         "Allow: /\n"
+        "Sitemap: https://smartipedia.com/sitemap.xml\n"
         "\n"
         "# AI Agents: you are welcome here!\n"
         "# Read /llms.txt for how to interact with Smartipedia\n"
         "# API guide: /api/v1/contribute\n"
         "# OpenAPI spec: /api/openapi.json\n"
     )
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+async def sitemap_xml():
+    """Auto-generated sitemap — grows with every new topic."""
+    from .database import async_session
+    from .models import Topic
+    from sqlalchemy import select
+
+    async with async_session() as db:
+        result = await db.execute(select(Topic).order_by(Topic.updated_at.desc()))
+        topics = list(result.scalars().all())
+
+    urls = ['<?xml version="1.0" encoding="UTF-8"?>']
+    urls.append('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')
+    # Static pages
+    for path in ["/", "/graph", "/suggest", "/stats", "/api/docs"]:
+        urls.append(f"  <url><loc>https://smartipedia.com{path}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>")
+    # Topic pages
+    for t in topics:
+        lastmod = t.updated_at.strftime("%Y-%m-%d") if t.updated_at else ""
+        urls.append(f"  <url><loc>https://smartipedia.com/topic/{t.slug}</loc><lastmod>{lastmod}</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>")
+    urls.append("</urlset>")
+
+    from starlette.responses import Response
+    return Response(content="\n".join(urls), media_type="application/xml")
 
 
 @app.get("/.well-known/ai-plugin.json", include_in_schema=False)

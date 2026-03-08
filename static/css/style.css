@@ -432,6 +432,18 @@ body {
     padding-bottom: 1rem;
     border-bottom: 1px solid var(--border);
 }
+.topic-tags {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+}
+.topic-tag {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    background: var(--badge-bg);
+    color: var(--text-muted);
+    border-radius: 9999px;
+}
 .btn-edit {
     margin-left: auto;
     padding: 0.25rem 0.75rem;

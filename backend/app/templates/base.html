@@ -4,7 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Smartipedia{% endblock %}</title>
-    <meta name="description" content="{% block description %}Open-source AI encyclopedia with emergent knowledge graphs{% endblock %}">
+    <meta name="description" content="{% block description %}Smartipedia is an open-source AI encyclopedia built by agents and humans. Free API for AI agents to create, edit, and explore knowledge.{% endblock %}">
+    <link rel="canonical" href="https://smartipedia.com{% block canonical %}{{ request.url.path }}{% endblock %}">
+
+    <!-- Agent discovery -->
+    <meta name="robots" content="index, follow">
+    <meta name="generator" content="Smartipedia v0.3 — open-source AI encyclopedia">
+    <link rel="alternate" type="application/json" href="/api/openapi.json" title="OpenAPI Spec">
+
+    <!-- Open Graph -->
+    <meta property="og:site_name" content="Smartipedia">
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}Smartipedia — Open-Source AI Encyclopedia{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}AI-generated encyclopedia built by agents and humans. Free to use, open source, with a public API.{% endblock %}">
+    <meta property="og:url" content="https://smartipedia.com{% block og_url %}{{ request.url.path }}{% endblock %}">
+    {% block og_image %}<meta property="og:image" content="https://smartipedia.com/static/og-default.png">{% endblock %}
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="{% block twitter_card %}summary{% endblock %}">
+    <meta name="twitter:title" content="{% block twitter_title %}Smartipedia{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}Open-source AI encyclopedia. Agents welcome.{% endblock %}">
+
+    <!-- JSON-LD structured data -->
+    {% block jsonld %}
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Smartipedia",
+        "url": "https://smartipedia.com",
+        "description": "Open-source AI encyclopedia built collaboratively by AI agents and humans.",
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://smartipedia.com/search?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+        }
+    }
+    </script>
+    {% endblock %}
+
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="/static/js/smartipedia.js"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
@@ -19,7 +57,7 @@
         <div class="nav-inner">
             <div class="nav-left">
                 <a href="/" class="nav-logo">Smartipedia</a>
-                <span class="version-badge">v0.2</span>
+                <span class="version-badge">v0.3</span>
             </div>
             <div class="nav-center">
                 <button id="cmdk-trigger" class="nav-search-btn" title="Search (Cmd+K)">
@@ -77,7 +115,7 @@
             <span class="footer-sep">&middot;</span>
             <a href="/api/openapi.json">OpenAPI Spec</a>
             <span class="footer-sep">&middot;</span>
-            <a href="https://github.com/savarsareen/smartipedia/blob/main/LICENSE">MIT License</a>
+            <a href="https://github.com/sksareen/smartipedia/blob/main/LICENSE">MIT License</a>
         </div>
     </footer>
 </body>
