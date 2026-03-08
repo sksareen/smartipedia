@@ -728,6 +728,123 @@ body {
     margin-top: 0.25rem;
 }
 
+/* ==================== AGENT CTA (HOME) ==================== */
+.hero-tagline {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: 1.5rem;
+}
+.agent-cta {
+    margin-bottom: 3rem;
+    text-align: center;
+}
+.agent-cta-header {
+    margin-bottom: 2rem;
+}
+.agent-cta-header h2 {
+    font-family: var(--font-serif);
+    font-size: 1.5rem;
+    font-weight: 400;
+    margin-bottom: 0.5rem;
+}
+.agent-cta-header p {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    max-width: 500px;
+    margin: 0 auto;
+}
+.agent-cta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+    text-align: left;
+}
+.agent-cta-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+}
+.agent-cta-icon {
+    width: 28px; height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--badge-bg);
+    color: var(--text-muted);
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+}
+.agent-cta-card h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+.agent-cta-card p {
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    color: var(--link-color);
+    margin-bottom: 0.4rem;
+}
+.agent-cta-card span {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+.agent-cta-links {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.agent-cta-btn {
+    padding: 0.6rem 1.25rem;
+    background: var(--text);
+    color: var(--bg);
+    border-radius: 9999px;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: opacity 0.2s;
+}
+.agent-cta-btn:hover { opacity: 0.85; }
+.agent-cta-btn-outline {
+    background: none;
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+.agent-cta-btn-outline:hover { border-color: var(--border-hover); }
+
+/* Agent banner on topic pages */
+.topic-agent-banner {
+    margin-top: 2.5rem;
+    padding: 1.25rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-align: center;
+}
+.topic-agent-banner p {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+}
+.topic-agent-links {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.topic-agent-links a {
+    font-size: 0.8rem;
+    color: var(--link-color);
+    text-decoration: none;
+}
+.topic-agent-links a:hover { text-decoration: underline; }
+
 /* ==================== GRAPH PAGE ==================== */
 .graph-page {
     display: flex;
