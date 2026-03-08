@@ -6,7 +6,8 @@ from slugify import slugify
 from sqlalchemy import select, func as sqlfunc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import SearchLog, Topic, TopicLink, TopicRevision
+from ..config import settings
+from ..models import GenerationLog, SearchLog, Topic, TopicLink, TopicRevision
 from .llm import generate_embedding, generate_topic
 from .search import web_search
 
@@ -16,13 +17,30 @@ async def get_topic_by_slug(db: AsyncSession, slug: str) -> Topic | None:
     return result.scalar_one_or_none()
 
 
+async def check_daily_limit(db: AsyncSession) -> tuple[bool, int]:
+    """Check if daily generation limit has been reached. Returns (allowed, remaining)."""
+    if settings.daily_generation_limit <= 0:
+        return True, 999
+
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    result = await db.execute(
+        select(sqlfunc.count(GenerationLog.id))
+        .where(GenerationLog.created_at >= today_start)
+    )
+    today_count = result.scalar_one()
+    remaining = max(0, settings.daily_generation_limit - today_count)
+    return remaining > 0, remaining
+
+
 async def get_or_create_topic(
     db: AsyncSession,
     title: str,
-    openrouter_key: str | None = None,
-    model: str | None = None,
 ) -> tuple[Topic, bool]:
-    """Get existing topic or generate a new one. Returns (topic, was_created)."""
+    """Get existing topic or generate a new one. Returns (topic, was_created).
+
+    Generation is free — uses the server's OpenRouter key.
+    Subject to daily generation limit.
+    """
     slug = slugify(title, max_length=512)
     existing = await get_topic_by_slug(db, slug)
     if existing:
@@ -30,9 +48,17 @@ async def get_or_create_topic(
         await db.commit()
         return existing, False
 
-    # Generate new topic
+    # Check daily limit
+    allowed, remaining = await check_daily_limit(db)
+    if not allowed:
+        raise RateLimitError(
+            f"Daily generation limit reached ({settings.daily_generation_limit}/day). "
+            f"Try again tomorrow, or edit existing topics."
+        )
+
+    # Generate new topic (always uses server key)
     search_results = await web_search(title)
-    generated = await generate_topic(title, search_results, openrouter_key, model)
+    generated = await generate_topic(title, search_results)
 
     content_html = markdown.markdown(
         generated["content_md"],
@@ -66,9 +92,12 @@ async def get_or_create_topic(
     await db.flush()
 
     # Generate embedding (non-blocking — ok if it fails)
-    embedding = await generate_embedding(f"{title}: {generated['summary']}", openrouter_key)
+    embedding = await generate_embedding(f"{title}: {generated['summary']}")
     if embedding:
         topic.embedding = embedding
+
+    # Log the generation for rate limiting
+    db.add(GenerationLog(topic_slug=slug, model_used=generated["model"]))
 
     # Create placeholder links for related topics
     for related_title in generated["related_topics"]:
@@ -451,4 +480,8 @@ class ConflictError(Exception):
 
 
 class SectionNotFoundError(Exception):
+    pass
+
+
+class RateLimitError(Exception):
     pass

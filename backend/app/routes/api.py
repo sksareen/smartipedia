@@ -4,15 +4,18 @@ Docs: /api/docs | OpenAPI: /api/openapi.json | Guide: /api/v1/contribute
 """
 import re
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
 from ..database import get_db
 from ..services.llm import generate_embedding
 from ..services.topics import (
     ConflictError,
+    RateLimitError,
     SectionNotFoundError,
+    check_daily_limit,
     flag_topic,
     get_analytics_overview,
     get_discover_facets,
@@ -54,7 +57,6 @@ class TopicResponse(BaseModel):
 
 class TopicCreateRequest(BaseModel):
     title: str = Field(description="Title of the topic to create or retrieve")
-    model: str | None = Field(default=None, description="OpenRouter model ID override")
 
 
 class TopicUpdateRequest(BaseModel):
@@ -130,7 +132,7 @@ async def contribute_guide():
             "1_discover": "GET /api/v1/discover?q=... — Semantic search with filters (category, difficulty, quality).",
             "2_search": "GET /api/v1/search?q=... — Text search for existing topics.",
             "3_read": "GET /api/v1/topics/{slug} — Read a topic. Note revision_number, metadata, and sections.",
-            "4_create": "POST /api/v1/topics — Create a new topic (BYOK: pass X-OpenRouter-Key header).",
+            "4_create": "POST /api/v1/topics — Create a new topic. Free to use (subject to daily limit).",
             "5_edit_section": "PATCH /api/v1/topics/{slug}/section — Edit one section safely (multi-agent friendly).",
             "6_edit_full": "PUT /api/v1/topics/{slug} — Replace full article (use expected_revision).",
             "7_review": "POST /api/v1/topics/{slug}/review — Mark as verified/reviewed/disputed/outdated.",
@@ -144,10 +146,10 @@ async def contribute_guide():
             "analytics_stale": "GET /api/v1/analytics/stale — Popular topics that haven't been updated recently.",
             "analytics_flagged": "GET /api/v1/analytics/flagged — Topics with reported issues. Fix these!",
         },
-        "byok": {
-            "description": "Bring Your Own Key — pass your OpenRouter API key for generation.",
-            "header": "X-OpenRouter-Key: sk-or-v1-your-key-here",
-            "model_header": "X-Model: anthropic/claude-sonnet-4 (optional)",
+        "free_generation": {
+            "description": "Topic generation is free. No API key needed — we cover the cost.",
+            "daily_limit": "There is a daily cap on new topic generation to manage costs. Check GET /api/v1/rate-limit for current status.",
+            "editing": "Editing existing topics has no limit — edit as much as you want.",
         },
         "metadata_schema": {
             "tags": "3-8 lowercase hyphenated tags",
@@ -178,15 +180,16 @@ async def api_get_topic(slug: str, db: AsyncSession = Depends(get_db)):
     return _build_response(topic, related)
 
 
-@router.post("/topics", response_model=TopicResponse, summary="Create or get a topic (BYOK supported)")
+@router.post("/topics", response_model=TopicResponse,
+            summary="Create or get a topic (free, rate-limited)")
 async def api_create_topic(
     body: TopicCreateRequest,
     db: AsyncSession = Depends(get_db),
-    x_openrouter_key: str | None = Header(default=None),
-    x_model: str | None = Header(default=None),
 ):
-    model = body.model or x_model
-    topic, created = await get_or_create_topic(db, body.title, openrouter_key=x_openrouter_key, model=model)
+    try:
+        topic, created = await get_or_create_topic(db, body.title)
+    except RateLimitError as e:
+        raise HTTPException(status_code=429, detail=str(e))
     related = await get_related_topics(db, topic)
     return _build_response(topic, related)
 
@@ -276,10 +279,9 @@ async def api_discover(
     min_views: int | None = None,
     limit: int = 20,
     db: AsyncSession = Depends(get_db),
-    x_openrouter_key: str | None = Header(default=None),
 ):
     # Try semantic search first
-    embedding = await generate_embedding(q, x_openrouter_key)
+    embedding = await generate_embedding(q)
     if embedding:
         results = await semantic_search_topics(db, embedding, category, difficulty, quality, min_views, limit)
     else:
@@ -337,6 +339,17 @@ async def api_graph(db: AsyncSession = Depends(get_db)):
              for l in links if str(l.source_id) in slug_by_id and str(l.target_id) in slug_by_id]
 
     return {"nodes": nodes, "edges": edges}
+
+
+@router.get("/rate-limit", tags=["system"], summary="Check generation rate limit")
+async def api_rate_limit(db: AsyncSession = Depends(get_db)):
+    allowed, remaining = await check_daily_limit(db)
+    return {
+        "daily_limit": settings.daily_generation_limit,
+        "remaining": remaining,
+        "can_generate": allowed,
+        "note": "Editing existing topics has no limit.",
+    }
 
 
 @router.get("/health", tags=["system"], summary="Health check")

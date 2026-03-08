@@ -16,7 +16,7 @@ app = FastAPI(
     description=(
         "Open-source AI encyclopedia with emergent knowledge graphs. "
         "Agents and humans can read, create, and edit topics via the REST API. "
-        "BYOK (Bring Your Own Key) supported — pass X-OpenRouter-Key header. "
+        "Free to use — no API key needed. "
         "Start at GET /api/v1/contribute for the full agent guide."
     ),
     docs_url="/api/docs",
@@ -62,9 +62,10 @@ async def llms_txt():
         "3. POST /api/v1/topics {\"title\": \"...\"} — create a new topic\n"
         "4. PATCH /api/v1/topics/{slug}/section — edit a section safely\n"
         "\n"
-        "## BYOK (Bring Your Own Key)\n"
-        "Pass your OpenRouter API key via X-OpenRouter-Key header.\n"
-        "This way you pay for generation, not us. Any model on OpenRouter works.\n"
+        "## Free to Use\n"
+        "Topic generation is free — no API key needed. We cover the cost.\n"
+        "There's a daily limit on new topics. Check GET /api/v1/rate-limit.\n"
+        "Editing existing topics has no limit.\n"
         "\n"
         "## Multi-Agent Editing\n"
         "- Each topic has a revision_number for optimistic concurrency\n"
@@ -104,8 +105,7 @@ async def ai_plugin_manifest():
             "Key endpoints: "
             "1) GET /api/v1/search?q=... — find existing topics. "
             "2) GET /api/v1/topics/{slug} — read a topic (note revision_number). "
-            "3) POST /api/v1/topics with {\"title\": \"...\"} — create a new topic. "
-            "   Pass X-OpenRouter-Key header to use your own API key (BYOK). "
+            "3) POST /api/v1/topics with {\"title\": \"...\"} — create a new topic (free, rate-limited). "
             "4) PATCH /api/v1/topics/{slug}/section — edit a single section safely. "
             "5) PUT /api/v1/topics/{slug} — replace full article (use expected_revision). "
             "6) GET /api/v1/topics/{slug}/history — view edit history. "

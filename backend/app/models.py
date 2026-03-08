@@ -80,3 +80,13 @@ class SearchLog(Base):
     result_count = Column(Integer, default=0)
     searcher = Column(String(128), default="anonymous")  # agent name or "web"
     created_at = Column(DateTime, server_default=func.now())
+
+
+class GenerationLog(Base):
+    """Tracks topic generations for daily spend cap."""
+    __tablename__ = "generation_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    topic_slug = Column(String(512), nullable=False)
+    model_used = Column(String(128))
+    created_at = Column(DateTime, server_default=func.now())
