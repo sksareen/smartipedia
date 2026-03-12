@@ -1,3 +1,4 @@
+import asyncio
 import re
 from datetime import datetime, timezone
 
@@ -91,11 +92,6 @@ async def get_or_create_topic(
     db.add(revision)
     await db.flush()
 
-    # Generate embedding (non-blocking — ok if it fails)
-    embedding = await generate_embedding(f"{title}: {generated['summary']}")
-    if embedding:
-        topic.embedding = embedding
-
     # Log the generation for rate limiting
     db.add(GenerationLog(topic_slug=slug, model_used=generated["model"]))
 
@@ -115,6 +111,19 @@ async def get_or_create_topic(
 
     await db.commit()
     await db.refresh(topic)
+
+    # Generate embedding in background — don't block the response
+    async def _set_embedding():
+        try:
+            embedding = await generate_embedding(f"{title}: {generated['summary']}")
+            if embedding:
+                topic.embedding = embedding
+                await db.commit()
+        except Exception:
+            pass  # ok if it fails
+
+    asyncio.create_task(_set_embedding())
+
     return topic, True
 
 

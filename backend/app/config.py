@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://smartipedia:smartipedia@localhost:5434/smartipedia"
     openrouter_api_key: str = ""
-    openrouter_model: str = "anthropic/claude-sonnet-4"
+    openrouter_model: str = "anthropic/claude-haiku-4-5-20251001"
     embedding_model: str = "openai/text-embedding-3-small"
     searxng_url: str = "http://localhost:8888"
     umami_website_id: str = ""  # set after creating the site in Umami dashboard
