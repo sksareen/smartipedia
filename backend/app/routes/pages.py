@@ -165,7 +165,18 @@ async def generate_page(request: Request, db: AsyncSession = Depends(get_db)):
     if not title:
         return RedirectResponse("/", status_code=303)
     slug = slugify(title, max_length=512)
-    topic, created = await get_or_create_topic(db, title)
+    try:
+        topic, created = await get_or_create_topic(db, title)
+    except Exception as e:
+        error_msg = str(e)
+        if "402" in error_msg or "Payment" in error_msg:
+            error_msg = "Article generation is temporarily unavailable. Please try again later."
+        elif "rate" in error_msg.lower() or "limit" in error_msg.lower():
+            error_msg = error_msg
+        else:
+            error_msg = "Something went wrong generating that article. Please try again."
+        from urllib.parse import quote
+        return RedirectResponse(f"/?error={quote(error_msg)}", status_code=303)
     return RedirectResponse(f"/topic/{topic.slug}", status_code=303)
 
 
