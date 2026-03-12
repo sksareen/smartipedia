@@ -1497,3 +1497,45 @@ body {
     .edit-controls { flex-direction: column; }
     .source-tooltip, .keyword-tooltip { max-width: 280px; }
 }
+
+/* ==================== GENERATING OVERLAY ==================== */
+.generating-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+.generating-overlay.active {
+    display: flex;
+}
+.generating-spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #60a5fa;
+    border-radius: 50%;
+    animation: generating-spin 0.8s linear infinite;
+}
+@keyframes generating-spin {
+    to { transform: rotate(360deg); }
+}
+.generating-text {
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: 500;
+    text-align: center;
+    max-width: 400px;
+    line-height: 1.5;
+}
+.generating-subtext {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.875rem;
+    text-align: center;
+}

@@ -397,3 +397,22 @@
     return div.innerHTML;
   }
 })();
+
+
+  // ==================== GENERATE LOADING STATE ====================
+  document.addEventListener('DOMContentLoaded', function () {
+    var overlay = document.getElementById('generating-overlay');
+    if (!overlay) return;
+
+    // Intercept all forms that POST to /generate
+    document.querySelectorAll('form[action="/generate"]').forEach(function (form) {
+      form.addEventListener('submit', function () {
+        overlay.classList.add('active');
+        // Disable all buttons and inputs to prevent double-clicks
+        document.querySelectorAll('button, input[type="submit"], a.btn, a.nav-btn').forEach(function (el) {
+          el.style.pointerEvents = 'none';
+          el.style.opacity = '0.5';
+        });
+      });
+    });
+  });
