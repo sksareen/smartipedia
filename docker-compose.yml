@@ -6,6 +6,9 @@ services:
     ports:
       - "8001:8000"
     env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://smartipedia:smartipedia@db:5432/smartipedia
+      - SEARXNG_URL=http://searxng:8080
     depends_on:
       db:
         condition: service_healthy
@@ -13,7 +16,7 @@ services:
         condition: service_started
     volumes:
       - .:/app
-    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uv run uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
 
   db:
     image: pgvector/pgvector:pg16

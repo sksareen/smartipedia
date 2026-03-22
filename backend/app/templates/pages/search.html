@@ -18,7 +18,7 @@
     {% elif query %}
     <div class="no-results">
         <p>No existing topics match "{{ query }}". Want to create one?</p>
-        <form action="/generate" method="post" class="hero-form">
+        <form action="/generate-async" method="post" class="hero-form">
             <input type="text" name="title" value="{{ query }}" required>
             <button type="submit">Generate Article</button>
         </form>

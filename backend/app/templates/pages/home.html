@@ -23,7 +23,7 @@
         {% if request.query_params.get("error") %}
         <div class="generate-error">{{ request.query_params.get("error") }}</div>
         {% endif %}
-        <form action="/generate" method="post" class="hero-search">
+        <form action="/generate-async" method="post" class="hero-search">
             <input type="text" name="title" placeholder="Search or generate any topic..." required autofocus>
             <button type="submit">Generate</button>
         </form>

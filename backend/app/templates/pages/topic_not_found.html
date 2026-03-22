@@ -6,7 +6,7 @@
 <section class="not-found">
     <h1>Topic not found</h1>
     <p>This topic doesn't exist yet. Want to create it?</p>
-    <form action="/generate" method="post" class="hero-search">
+    <form action="/generate-async" method="post" class="hero-search">
         <input type="text" name="title" value="{{ slug.replace('-', ' ').title() }}" required>
         <button type="submit">Generate</button>
     </form>

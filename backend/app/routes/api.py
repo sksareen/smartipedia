@@ -371,6 +371,43 @@ async def api_rate_limit(db: AsyncSession = Depends(get_db)):
     }
 
 
+class PreviewRequest(BaseModel):
+    text: str = Field(description="Highlighted text to preview")
+
+
+@router.post("/preview", tags=["rabbithole"], summary="Get a quick preview for highlighted text")
+async def api_preview(body: PreviewRequest, db: AsyncSession = Depends(get_db)):
+    """Returns a short preview for text the user highlighted.
+    If a matching topic exists, returns its summary. Otherwise generates a quick one-liner via LLM."""
+    from slugify import slugify as make_slug
+    from ..services.llm import generate_topic_preview
+
+    text = body.text.strip()
+    if not text or len(text) > 200:
+        raise HTTPException(status_code=400, detail="Text must be 1-200 characters")
+
+    slug = make_slug(text, max_length=512)
+
+    # Check if topic already exists
+    topic = await get_topic_by_slug(db, slug)
+    if topic:
+        return {
+            "exists": True,
+            "slug": topic.slug,
+            "title": topic.title,
+            "preview": topic.summary or topic.title,
+        }
+
+    # Generate a quick preview via LLM
+    preview = await generate_topic_preview(text)
+    return {
+        "exists": False,
+        "slug": slug,
+        "title": text,
+        "preview": preview,
+    }
+
+
 @router.get("/health", tags=["system"], summary="Health check")
 async def health():
     return {"status": "ok", "service": "smartipedia", "version": "0.3.0"}

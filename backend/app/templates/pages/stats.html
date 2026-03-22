@@ -99,7 +99,7 @@
             <div class="missing-list">
                 {% for m in missing %}
                 <div class="missing-item">
-                    <form action="/generate" method="post" class="missing-form">
+                    <form action="/generate-async" method="post" class="missing-form">
                         <input type="hidden" name="title" value="{{ m.query }}">
                         <button type="submit" class="missing-btn">{{ m.query }}</button>
                     </form>

@@ -75,6 +75,9 @@
 
     // ==================== KEYWORD LINKS ====================
     initKeywordLinks();
+
+    // ==================== RABBIT HOLE (text selection) ====================
+    initRabbitHole();
   });
 
   // ==================== CMD+K ====================
@@ -338,6 +341,10 @@
 
       a.addEventListener('mouseenter', showKeywordTooltip);
       a.addEventListener('mouseleave', hideKeywordTooltip);
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        showKeywordTooltip(e);
+      });
 
       var fragment = document.createDocumentFragment();
       if (before) fragment.appendChild(document.createTextNode(before));
@@ -352,26 +359,161 @@
   }
 
   var keywordTooltipEl = null;
+  var keywordTooltipHideTimer = null;
 
   function showKeywordTooltip(e) {
-    var el = e.target;
+    clearTimeout(keywordTooltipHideTimer);
+    var el = e.target.closest('.keyword-link') || e.target;
     if (!keywordTooltipEl) {
       keywordTooltipEl = document.createElement('div');
       keywordTooltipEl.className = 'keyword-tooltip';
       document.body.appendChild(keywordTooltipEl);
+      keywordTooltipEl.addEventListener('mouseenter', function () {
+        clearTimeout(keywordTooltipHideTimer);
+      });
+      keywordTooltipEl.addEventListener('mouseleave', function () {
+        keywordTooltipHideTimer = setTimeout(function () {
+          keywordTooltipEl.classList.remove('visible');
+        }, 200);
+      });
     }
 
     var html = '<span class="keyword-tooltip-title">' + escHtml(el.dataset.title) + '</span>';
     if (el.dataset.summary)
       html += '<span class="keyword-tooltip-desc">' + escHtml(el.dataset.summary) + '</span>';
-    html += '<span class="keyword-tooltip-link">Click to read full article</span>';
+    html += '<a href="/topic/' + escHtml(el.dataset.slug) + '" class="explore-btn">Open article &rarr;</a>';
     keywordTooltipEl.innerHTML = html;
     positionTooltip(keywordTooltipEl, el);
     keywordTooltipEl.classList.add('visible');
   }
 
   function hideKeywordTooltip() {
-    if (keywordTooltipEl) keywordTooltipEl.classList.remove('visible');
+    keywordTooltipHideTimer = setTimeout(function () {
+      if (keywordTooltipEl) keywordTooltipEl.classList.remove('visible');
+    }, 200);
+  }
+
+  // ==================== RABBIT HOLE (text selection to explore) ====================
+  function initRabbitHole() {
+    var content = document.querySelector('.topic-content');
+    if (!content) return;
+
+    var exploreTooltip = document.createElement('div');
+    exploreTooltip.className = 'explore-tooltip';
+    exploreTooltip.style.display = 'none';
+    document.body.appendChild(exploreTooltip);
+
+    var currentRequest = null;
+
+    function hideExploreTooltip() {
+      exploreTooltip.style.display = 'none';
+      exploreTooltip.classList.remove('visible');
+    }
+
+    // Handle text selection end
+    content.addEventListener('mouseup', function (e) {
+      // Don't trigger on clicks on links or buttons
+      if (e.target.closest('a') || e.target.closest('button') || e.target.closest('.explore-tooltip')) return;
+
+      setTimeout(function () {
+        var sel = window.getSelection();
+        var text = sel ? sel.toString().trim() : '';
+
+        // Must be 2-200 chars, not just whitespace
+        if (!text || text.length < 2 || text.length > 200) {
+          hideExploreTooltip();
+          return;
+        }
+
+        // Don't trigger for single common words
+        if (text.split(/\s+/).length === 1 && text.length < 4) {
+          hideExploreTooltip();
+          return;
+        }
+
+        // Get selection position
+        var range = sel.getRangeAt(0);
+        var rect = range.getBoundingClientRect();
+
+        // Show loading state in tooltip
+        exploreTooltip.innerHTML =
+          '<span class="explore-tooltip-title">' + escHtml(text) + '</span>' +
+          '<span class="explore-tooltip-desc">Looking up...</span>';
+        exploreTooltip.style.display = 'block';
+        positionTooltip(exploreTooltip, { getBoundingClientRect: function () { return rect; } });
+        exploreTooltip.classList.add('visible');
+
+        // Abort previous request if still pending
+        if (currentRequest) currentRequest.abort();
+        var controller = new AbortController();
+        currentRequest = controller;
+
+        // Call preview API
+        fetch('/api/v1/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text }),
+          signal: controller.signal,
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            currentRequest = null;
+            var html = '<span class="explore-tooltip-title">' + escHtml(data.title) + '</span>';
+            html += '<span class="explore-tooltip-desc">' + escHtml(data.preview) + '</span>';
+
+            if (data.exists) {
+              html += '<a href="/topic/' + escHtml(data.slug) + '" class="explore-btn">Open article &rarr;</a>';
+            } else {
+              html += '<a href="#" class="explore-btn explore-generate" data-title="' + escHtml(data.title) + '" data-slug="' + escHtml(data.slug) + '">Generate article &rarr;</a>';
+            }
+            exploreTooltip.innerHTML = html;
+            positionTooltip(exploreTooltip, { getBoundingClientRect: function () { return rect; } });
+
+            // Bind generate button
+            var genBtn = exploreTooltip.querySelector('.explore-generate');
+            if (genBtn) {
+              genBtn.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                var title = this.dataset.title;
+                var slug = this.dataset.slug;
+                // Submit a form to generate-async
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/generate-async';
+                var inp = document.createElement('input');
+                inp.type = 'hidden';
+                inp.name = 'title';
+                inp.value = title;
+                form.appendChild(inp);
+                document.body.appendChild(form);
+                form.submit();
+              });
+            }
+          })
+          .catch(function (err) {
+            if (err.name !== 'AbortError') {
+              currentRequest = null;
+              exploreTooltip.innerHTML =
+                '<span class="explore-tooltip-title">' + escHtml(text) + '</span>' +
+                '<span class="explore-tooltip-desc">Could not load preview</span>';
+            }
+          });
+      }, 10);
+    });
+
+    // Hide tooltip when clicking outside
+    document.addEventListener('mousedown', function (e) {
+      if (!e.target.closest('.explore-tooltip')) {
+        hideExploreTooltip();
+      }
+    });
+
+    // Hide on scroll
+    var scrollTimer = null;
+    window.addEventListener('scroll', function () {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(hideExploreTooltip, 100);
+    }, { passive: true });
   }
 
   // ==================== HELPERS ====================
@@ -405,7 +547,7 @@
     if (!overlay) return;
 
     // Intercept all forms that POST to /generate
-    document.querySelectorAll('form[action="/generate"]').forEach(function (form) {
+    document.querySelectorAll('form[action="/generate"], form[action="/generate-async"]').forEach(function (form) {
       form.addEventListener('submit', function () {
         overlay.classList.add('active');
         // Disable all buttons and inputs to prevent double-clicks

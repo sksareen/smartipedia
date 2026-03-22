@@ -163,6 +163,40 @@ Remember to include:
     }
 
 
+async def generate_topic_preview(title: str) -> str:
+    """Generate a quick one-line preview (under 15 words) for a topic via LLM."""
+    api_key = settings.openrouter_api_key
+    if not api_key:
+        return f"{title} — an encyclopedia topic"
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://smartipedia.com",
+        "X-Title": "Smartipedia",
+    }
+
+    payload = {
+        "model": settings.openrouter_model,
+        "messages": [
+            {"role": "system", "content": "You write ultra-short encyclopedia previews. Reply with ONLY a single sentence under 15 words. No quotes, no punctuation at the start. Just a concise factual description."},
+            {"role": "user", "content": f"What is: {title}"},
+        ],
+        "max_tokens": 60,
+        "temperature": 0.2,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(OPENROUTER_URL, headers=headers, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+        return data["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        print(f"Preview generation failed: {e}")
+        return f"{title} — explore this topic"
+
+
 async def generate_embedding(
     text: str,
     api_key: str | None = None,

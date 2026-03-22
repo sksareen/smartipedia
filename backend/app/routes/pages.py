@@ -180,6 +180,52 @@ async def generate_page(request: Request, db: AsyncSession = Depends(get_db)):
     return RedirectResponse(f"/topic/{topic.slug}", status_code=303)
 
 
+@router.get("/topic/{slug}/generating", response_class=HTMLResponse)
+async def generating_page(request: Request, slug: str, title: str = "", db: AsyncSession = Depends(get_db)):
+    """Show a loading page while topic is being generated, then redirect when ready."""
+    # Check if topic already exists (generation finished)
+    topic = await get_topic_by_slug(db, slug)
+    if topic:
+        return RedirectResponse(f"/topic/{topic.slug}", status_code=303)
+    display_title = title or slug.replace("-", " ").title()
+    return request.app.state.templates.TemplateResponse(
+        "pages/generating.html",
+        {"request": request, "slug": slug, "title": display_title},
+    )
+
+
+@router.post("/generate-async", response_class=HTMLResponse)
+async def generate_async(request: Request, db: AsyncSession = Depends(get_db)):
+    """Start topic generation and redirect to the generating page."""
+    form = await request.form()
+    title = form.get("title", "").strip()
+    if not title:
+        return RedirectResponse("/", status_code=303)
+    slug = slugify(title, max_length=512)
+
+    # Check if already exists
+    topic = await get_topic_by_slug(db, slug)
+    if topic:
+        return RedirectResponse(f"/topic/{topic.slug}", status_code=303)
+
+    # Start generation in background
+    import asyncio
+    asyncio.create_task(_generate_in_background(title))
+
+    from urllib.parse import quote
+    return RedirectResponse(f"/topic/{slug}/generating?title={quote(title)}", status_code=303)
+
+
+async def _generate_in_background(title: str):
+    """Generate topic in a background task."""
+    from ..database import async_session
+    async with async_session() as db:
+        try:
+            await get_or_create_topic(db, title)
+        except Exception as e:
+            print(f"Background generation failed for '{title}': {e}")
+
+
 @router.get("/topic/{slug}/edit", response_class=HTMLResponse)
 async def edit_topic_page(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
     topic = await get_topic_by_slug(db, slug)

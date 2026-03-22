@@ -734,6 +734,114 @@ body {
     text-decoration: underline;
 }
 
+/* ==================== EXPLORE TOOLTIP (rabbit hole) ==================== */
+.explore-tooltip {
+    position: fixed;
+    z-index: 10000;
+    max-width: 360px;
+    min-width: 240px;
+    padding: 0.75rem 1rem;
+    background: var(--tooltip-bg);
+    color: var(--tooltip-text);
+    border: 1px solid var(--tooltip-border);
+    border-radius: 10px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.15s, transform 0.15s;
+    pointer-events: auto;
+}
+.explore-tooltip.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+.explore-tooltip-title {
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+    display: block;
+    color: var(--tooltip-text);
+}
+.explore-tooltip-desc {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+
+/* Shared explore button style for both keyword and explore tooltips */
+.explore-btn {
+    display: inline-block;
+    padding: 0.35rem 0.75rem;
+    background: var(--link-color);
+    color: #fff !important;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+.explore-btn:hover {
+    opacity: 0.85;
+}
+
+/* ==================== GENERATING PAGE ==================== */
+.generating-page {
+    min-height: 60vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+.generating-card {
+    text-align: center;
+    max-width: 480px;
+    width: 100%;
+}
+.generating-icon {
+    margin-bottom: 1.5rem;
+    color: var(--text-muted);
+}
+.generating-spinner {
+    animation: spin 2s linear infinite;
+}
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.generating-card h1 {
+    font-family: var(--font-serif);
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--text);
+}
+.generating-subtitle {
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+    font-size: 0.95rem;
+}
+.generating-progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+.generating-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--link-color);
+    border-radius: 2px;
+    transition: width 1.5s ease;
+}
+.generating-status {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
 /* ==================== SOURCES SECTION ==================== */
 .topic-sources {
     margin-top: 2.5rem;

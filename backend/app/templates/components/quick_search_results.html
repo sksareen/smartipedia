@@ -8,7 +8,7 @@
 {% elif query and query|length >= 2 %}
 <div class="cmdk-no-results">
     <p>No results for "{{ query }}"</p>
-    <form action="/generate" method="post" class="cmdk-generate">
+    <form action="/generate-async" method="post" class="cmdk-generate">
         <input type="hidden" name="title" value="{{ query }}">
         <button type="submit">Generate "{{ query }}"</button>
     </form>
