@@ -27,7 +27,7 @@
 
     function escHtml(str) {
         var div = document.createElement('div');
-        div.textContent = str;
+        div.textContent = str || '';
         return div.innerHTML;
     }
 
@@ -46,20 +46,38 @@
         });
 
         var html = '';
-        journeys.forEach(function(journey) {
-            var rootNode = journey.nodes.find(function(n) { return !n.parentId; });
-            var startTitle = rootNode ? rootNode.title : 'Unknown';
+        journeys.forEach(function(journey, ji) {
+            if (!journey.nodes || !journey.nodes.length) return;
+
+            var rootNodes = journey.nodes.filter(function(n) { return !n.parentId; });
+            // If no root found, treat the first node as root
+            if (!rootNodes.length) rootNodes = [journey.nodes[0]];
+
+            var startTitle = rootNodes[0].title || 'Unknown';
             var nodeCount = journey.nodes.length;
-            var date = new Date(journey.startedAt);
+            var date = new Date(journey.startedAt || journey.updatedAt);
             var dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
             html += '<div class="journey-card">';
             html += '<div class="journey-card-header">';
             html += '<h3>' + escHtml(startTitle) + '</h3>';
-            html += '<span class="journey-card-meta">' + nodeCount + ' topics &middot; ' + dateStr + '</span>';
+            html += '<span class="journey-card-meta">' + nodeCount + ' topic' + (nodeCount !== 1 ? 's' : '') + ' explored &middot; ' + dateStr + '</span>';
             html += '</div>';
             html += '<div class="journey-tree">';
-            html += renderTree(journey.nodes, rootNode ? rootNode.id : null, 0);
+
+            // Build tree from all root nodes
+            var rendered = {};
+            rootNodes.forEach(function(root) {
+                html += renderNode(journey.nodes, root, 0, rendered);
+            });
+
+            // Render orphan nodes (parentId set but parent not found)
+            journey.nodes.forEach(function(n) {
+                if (!rendered[n.id]) {
+                    html += renderNode(journey.nodes, n, 0, rendered);
+                }
+            });
+
             html += '</div>';
             html += '</div>';
         });
@@ -67,21 +85,22 @@
         container.innerHTML = html;
     }
 
-    function renderTree(nodes, nodeId, depth) {
-        if (!nodeId) return '';
-        var nodeMap = {};
-        nodes.forEach(function(n) { nodeMap[n.id] = n; });
+    function renderNode(allNodes, node, depth, rendered) {
+        if (!node || rendered[node.id]) return '';
+        rendered[node.id] = true;
 
-        var node = nodeMap[nodeId];
-        if (!node) return '';
-
-        var children = nodes.filter(function(n) { return n.parentId === nodeId; });
-        var html = '<div class="journey-tree-node" style="margin-left:' + (depth * 20) + 'px">';
+        var indent = depth * 24;
+        var html = '<div class="journey-tree-node" style="padding-left:' + indent + 'px">';
+        if (depth > 0) {
+            html += '<span class="journey-tree-branch">&#9492;&#9472; </span>';
+        }
         html += '<a href="/topic/' + escHtml(node.slug) + '" class="journey-tree-link">' + escHtml(node.title) + '</a>';
         html += '</div>';
 
+        // Find and render children
+        var children = allNodes.filter(function(n) { return n.parentId === node.id; });
         children.forEach(function(child) {
-            html += renderTree(nodes, child.id, depth + 1);
+            html += renderNode(allNodes, child, depth + 1, rendered);
         });
 
         return html;
