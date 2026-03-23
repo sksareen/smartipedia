@@ -54,8 +54,8 @@
     </script>
     {% endblock %}
 
-    <link rel="stylesheet" href="/static/css/style.css?v=12">
-    <script src="/static/js/smartipedia.js?v=12"></script>
+    <link rel="stylesheet" href="/static/css/style.css?v=13">
+    <script src="/static/js/smartipedia.js?v=13"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     {% if umami_script %}
     <script defer src="https://analytics.smartipedia.com/script.js" data-website-id="{{ umami_website_id }}"></script>
@@ -93,10 +93,10 @@
         <!-- Journey breadcrumb (populated by JS on topic pages) -->
         <div class="journey-bar" id="journey-bar" style="display:none">
             <div class="journey-bar-inner">
-                <div class="journey-trail" id="journey-trail"></div>
                 <a href="/journeys" class="journey-view-all" title="View full journey tree">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/></svg>
                 </a>
+                <div class="journey-trail" id="journey-trail"></div>
             </div>
         </div>
     </nav>

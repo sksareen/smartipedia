@@ -1012,7 +1012,8 @@ body {
 .journey-bar-inner {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    justify-content: center;
+    gap: 0.5rem;
     max-width: 1200px;
     margin: 0 auto;
 }
