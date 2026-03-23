@@ -1,6 +1,9 @@
 /* Smartipedia — Dark mode, text size, ToC, Cmd+K, source tooltips, keyword links */
 
 (function () {
+  // ==================== TOUCH DETECTION ====================
+  var isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
   // ==================== DARK MODE ====================
   const THEME_KEY = 'smartipedia-theme';
 
@@ -368,6 +371,7 @@
       keywordTooltipEl = document.createElement('div');
       keywordTooltipEl.className = 'keyword-tooltip';
       document.body.appendChild(keywordTooltipEl);
+      // Desktop: keep tooltip open when hovering over it
       keywordTooltipEl.addEventListener('mouseenter', function () {
         clearTimeout(keywordTooltipHideTimer);
       });
@@ -393,6 +397,16 @@
     }, 200);
   }
 
+  // Mobile: tap outside keyword tooltip to dismiss
+  document.addEventListener('touchstart', function (e) {
+    if (keywordTooltipEl && keywordTooltipEl.classList.contains('visible')) {
+      if (!e.target.closest('.keyword-tooltip') && !e.target.closest('.keyword-link')) {
+        clearTimeout(keywordTooltipHideTimer);
+        keywordTooltipEl.classList.remove('visible');
+      }
+    }
+  }, { passive: true });
+
   // ==================== RABBIT HOLE (text selection to explore) ====================
   function initRabbitHole() {
     var content = document.querySelector('.topic-content');
@@ -410,10 +424,9 @@
       exploreTooltip.classList.remove('visible');
     }
 
-    // Handle text selection end
-    content.addEventListener('mouseup', function (e) {
+    function showExploreForSelection(e) {
       // Don't trigger on clicks on links or buttons
-      if (e.target.closest('a') || e.target.closest('button') || e.target.closest('.explore-tooltip')) return;
+      if (e && e.target && (e.target.closest('a') || e.target.closest('button') || e.target.closest('.explore-tooltip'))) return;
 
       setTimeout(function () {
         var sel = window.getSelection();
@@ -499,14 +512,49 @@
             }
           });
       }, 10);
+    }
+
+    // Desktop: mouseup on content
+    content.addEventListener('mouseup', showExploreForSelection);
+
+    // Mobile: selectionchange fires when user finishes selecting text via long-press
+    var selectionDebounce = null;
+    document.addEventListener('selectionchange', function () {
+      // Only use selectionchange on touch devices — desktop already handled by mouseup
+      if (!isTouchDevice) return;
+
+      clearTimeout(selectionDebounce);
+      selectionDebounce = setTimeout(function () {
+        var sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return;
+        var text = sel.toString().trim();
+        if (!text || text.length < 2) {
+          hideExploreTooltip();
+          return;
+        }
+        // Make sure selection is inside topic content
+        var range = sel.getRangeAt(0);
+        if (!content.contains(range.commonAncestorContainer)) return;
+        showExploreForSelection({target: range.commonAncestorContainer});
+      }, 400);
     });
 
-    // Hide tooltip when clicking outside
+    // Hide tooltip when clicking/tapping outside
     document.addEventListener('mousedown', function (e) {
       if (!e.target.closest('.explore-tooltip')) {
         hideExploreTooltip();
       }
     });
+    document.addEventListener('touchstart', function (e) {
+      if (!e.target.closest('.explore-tooltip')) {
+        // Delay slightly so selectionchange can fire first
+        setTimeout(function () {
+          var sel = window.getSelection();
+          var text = sel ? sel.toString().trim() : '';
+          if (!text || text.length < 2) hideExploreTooltip();
+        }, 100);
+      }
+    }, { passive: true });
 
     // Hide on scroll
     var scrollTimer = null;

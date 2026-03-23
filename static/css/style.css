@@ -1603,7 +1603,17 @@ body {
     .nav-search-btn { display: none; }
     .suggest-btn { display: none; }
     .edit-controls { flex-direction: column; }
-    .source-tooltip, .keyword-tooltip { max-width: 280px; }
+    .source-tooltip, .keyword-tooltip, .explore-tooltip {
+        max-width: calc(100vw - 24px);
+        left: 12px !important;
+        right: 12px;
+    }
+    .explore-btn {
+        display: block;
+        text-align: center;
+        padding: 0.55rem 1rem;
+        font-size: 0.9rem;
+    }
 }
 
 /* ==================== GENERATING OVERLAY ==================== */
