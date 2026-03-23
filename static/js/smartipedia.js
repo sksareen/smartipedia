@@ -324,12 +324,26 @@
       if (tag === 'A' || tag === 'H1' || tag === 'H2' || tag === 'H3' || tag === 'H4' || tag === 'CODE' || tag === 'PRE') continue;
       if (parent.classList.contains('keyword-link') || parent.classList.contains('footnote-ref')) continue;
 
-      var idx = node.textContent.toLowerCase().indexOf(lowerKeyword);
+      // Word-boundary match: keyword must not be inside a larger word
+      var text = node.textContent;
+      var lowerText = text.toLowerCase();
+      var idx = -1;
+      var searchFrom = 0;
+      while (true) {
+        idx = lowerText.indexOf(lowerKeyword, searchFrom);
+        if (idx === -1) break;
+        var charBefore = idx > 0 ? lowerText[idx - 1] : ' ';
+        var charAfter = idx + keyword.length < lowerText.length ? lowerText[idx + keyword.length] : ' ';
+        var wordBoundaryBefore = !/[a-z0-9]/.test(charBefore);
+        var wordBoundaryAfter = !/[a-z0-9]/.test(charAfter);
+        if (wordBoundaryBefore && wordBoundaryAfter) break;
+        searchFrom = idx + 1;
+      }
       if (idx === -1) continue;
 
-      var before = node.textContent.slice(0, idx);
-      var match = node.textContent.slice(idx, idx + keyword.length);
-      var after = node.textContent.slice(idx + keyword.length);
+      var before = text.slice(0, idx);
+      var match = text.slice(idx, idx + keyword.length);
+      var after = text.slice(idx + keyword.length);
 
       var a = document.createElement('a');
       a.className = 'keyword-link';
@@ -341,10 +355,6 @@
 
       a.addEventListener('mouseenter', showKeywordTooltip);
       a.addEventListener('mouseleave', hideKeywordTooltip);
-      a.addEventListener('click', function (e) {
-        e.preventDefault();
-        showKeywordTooltip(e);
-      });
 
       var fragment = document.createDocumentFragment();
       if (before) fragment.appendChild(document.createTextNode(before));
