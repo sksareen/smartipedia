@@ -47,7 +47,43 @@
     </div>
 </section>
 
-<!-- Agent API — visible above the fold -->
+{% if recent %}
+<div class="inner-container">
+    <section class="topic-section">
+        <div class="topic-section-header">
+            <h2>Latest Articles</h2>
+            <a href="/graph" class="topic-section-link">View Knowledge Graph &rarr;</a>
+        </div>
+        <div class="topic-grid">
+            {% for topic in recent %}
+            <a href="/topic/{{ topic.slug }}" class="topic-card">
+                <h3>{{ topic.title }}</h3>
+                <p>{{ topic.summary or '' }}</p>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endif %}
+
+{% if popular %}
+<div class="inner-container">
+    <section class="topic-section">
+        <h2>Popular</h2>
+        <div class="topic-grid">
+            {% for topic in popular %}
+            <a href="/topic/{{ topic.slug }}" class="topic-card">
+                <h3>{{ topic.title }}</h3>
+                <p>{{ topic.summary or '' }}</p>
+                <span class="topic-views">{{ topic.view_count }} views</span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endif %}
+
+<!-- Agent API -->
 <div class="inner-container">
     <section class="agent-cta">
         <div class="agent-cta-header">
@@ -89,37 +125,4 @@
         </div>
     </section>
 </div>
-
-{% if popular %}
-<div class="inner-container">
-    <section class="topic-section">
-        <h2>Popular</h2>
-        <div class="topic-grid">
-            {% for topic in popular %}
-            <a href="/topic/{{ topic.slug }}" class="topic-card">
-                <h3>{{ topic.title }}</h3>
-                <p>{{ topic.summary or '' }}</p>
-                <span class="topic-views">{{ topic.view_count }} views</span>
-            </a>
-            {% endfor %}
-        </div>
-    </section>
-</div>
-{% endif %}
-
-{% if recent %}
-<div class="inner-container">
-    <section class="topic-section">
-        <h2>Recently Created</h2>
-        <div class="topic-grid">
-            {% for topic in recent %}
-            <a href="/topic/{{ topic.slug }}" class="topic-card">
-                <h3>{{ topic.title }}</h3>
-                <p>{{ topic.summary or '' }}</p>
-            </a>
-            {% endfor %}
-        </div>
-    </section>
-</div>
-{% endif %}
 {% endblock %}

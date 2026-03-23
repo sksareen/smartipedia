@@ -325,6 +325,20 @@ body {
     padding: 2rem 1.5rem;
 }
 .topic-section { margin-bottom: 3rem; }
+.topic-section-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.topic-section-link {
+    font-size: 0.85rem;
+    color: var(--link-color);
+    text-decoration: none;
+    white-space: nowrap;
+}
+.topic-section-link:hover { text-decoration: underline; }
 .topic-section h2 {
     font-family: var(--font-serif);
     font-size: 1.25rem;
