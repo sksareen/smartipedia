@@ -68,9 +68,16 @@ async def view_topic(request: Request, slug: str, db: AsyncSession = Depends(get
     await db.refresh(topic)
     related = await get_related_topics(db, topic)
     sources_json = json.dumps(topic.sources or [])
+    # Send all topics for cross-linking (not just related), excluding current
+    from sqlalchemy import select as sel
+    from ..models import Topic
+    all_topics_result = await db.execute(
+        sel(Topic.slug, Topic.title, Topic.summary).where(Topic.slug != topic.slug)
+    )
+    all_topics = all_topics_result.all()
     related_json = json.dumps([
         {"slug": r.slug, "title": r.title, "summary": r.summary or ""}
-        for r in related
+        for r in all_topics
     ])
     infobox = topic.infobox or {}
     # Compute relative time
