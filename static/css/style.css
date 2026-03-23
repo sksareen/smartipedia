@@ -1004,14 +1004,8 @@ body {
 
 /* ==================== JOURNEY BAR ==================== */
 .journey-bar {
-    position: sticky;
-    top: 3.5rem;
-    z-index: 99;
-    background: var(--nav-bg);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--border);
-    padding: 0.45rem 1.5rem;
+    border-top: 1px solid var(--border);
+    padding: 0.4rem 1.5rem;
     font-size: 0.82rem;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
