@@ -1643,35 +1643,6 @@ body {
     }
     .dark .nav-search-btn svg { stroke: #111827; }
     .nav-search-text, .nav-search-kbd { display: none; }
-    .nav-btn[href="/graph"] {
-        padding: 0.5rem 0.7rem;
-        border: none;
-        background: #111827;
-        color: #fff;
-        border-radius: 8px;
-        margin-left: 0.4rem;
-        order: 3;
-    }
-    .nav-btn[href="/graph"] svg { stroke: #fff; }
-    .dark .nav-btn[href="/graph"] {
-        background: #f3f4f6;
-        color: #111827;
-    }
-    .dark .nav-btn[href="/graph"] svg { stroke: #111827; }
-    .graph-page {
-        height: calc(100vh - 3.5rem);
-        position: fixed;
-        top: 3.5rem;
-        left: 0;
-        right: 0;
-        bottom: 0;
-    }
-    .graph-header { display: none; }
-    .graph-container {
-        margin: 0;
-        border-radius: 0;
-        border: none;
-    }
     .suggest-btn { display: none; }
     .edit-controls { flex-direction: column; }
     .source-tooltip, .keyword-tooltip, .explore-tooltip {
