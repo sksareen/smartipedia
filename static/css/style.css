@@ -1614,6 +1614,19 @@ body {
     .hero .version-badge { margin-left: 0; margin-top: 0.5rem; }
     .nav-logo { font-size: 1rem; }
     .version-badge { font-size: 0.625rem; padding: 0.125rem 0.375rem; }
+    .nav-inner {
+        display: flex;
+        flex-wrap: wrap;
+    }
+    .nav-center {
+        order: 3;
+        display: flex;
+    }
+    .nav-right {
+        order: 2;
+        flex: 1;
+        justify-content: flex-end;
+    }
     .nav-search-btn {
         min-width: unset;
         padding: 0.5rem 0.7rem;
@@ -1621,7 +1634,7 @@ body {
         background: #111827;
         color: #fff;
         border-radius: 8px;
-        order: 1;
+        margin-left: 0.4rem;
     }
     .nav-search-btn svg { stroke: #fff; }
     .dark .nav-search-btn {
