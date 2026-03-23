@@ -1616,10 +1616,19 @@ body {
     .version-badge { font-size: 0.625rem; padding: 0.125rem 0.375rem; }
     .nav-search-btn {
         min-width: unset;
-        padding: 0.4rem 0.6rem;
+        padding: 0.5rem 0.7rem;
         border: none;
-        background: none;
+        background: #111827;
+        color: #fff;
+        border-radius: 8px;
+        order: 1;
     }
+    .nav-search-btn svg { stroke: #fff; }
+    .dark .nav-search-btn {
+        background: #f3f4f6;
+        color: #111827;
+    }
+    .dark .nav-search-btn svg { stroke: #111827; }
     .nav-search-text, .nav-search-kbd { display: none; }
     .suggest-btn { display: none; }
     .edit-controls { flex-direction: column; }
