@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}My Journeys — Smartipedia{% endblock %}
+
+{% block content %}
+<div class="journeys-page">
+    <div class="journeys-header">
+        <h1>My Journeys</h1>
+        <p class="journeys-subtitle">Your exploration paths through knowledge</p>
+        <button class="journeys-clear-btn" id="clear-journeys">Clear all</button>
+    </div>
+    <div class="journeys-list" id="journeys-list">
+        <p class="journeys-empty">No journeys yet. Start exploring a topic and your path will be tracked here.</p>
+    </div>
+</div>
+
+<script>
+(function() {
+    var JOURNEY_KEY = 'smartipedia-journeys';
+    var container = document.getElementById('journeys-list');
+    var clearBtn = document.getElementById('clear-journeys');
+
+    function getJourneys() {
+        try { return JSON.parse(localStorage.getItem(JOURNEY_KEY)) || []; }
+        catch (e) { return []; }
+    }
+
+    function escHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function renderJourneys() {
+        var journeys = getJourneys();
+        if (!journeys.length) {
+            container.innerHTML = '<p class="journeys-empty">No journeys yet. Start exploring a topic and your path will be tracked here.</p>';
+            clearBtn.style.display = 'none';
+            return;
+        }
+
+        clearBtn.style.display = 'inline-block';
+        // Sort newest first
+        journeys.sort(function(a, b) {
+            return new Date(b.updatedAt) - new Date(a.updatedAt);
+        });
+
+        var html = '';
+        journeys.forEach(function(journey) {
+            var rootNode = journey.nodes.find(function(n) { return !n.parentId; });
+            var startTitle = rootNode ? rootNode.title : 'Unknown';
+            var nodeCount = journey.nodes.length;
+            var date = new Date(journey.startedAt);
+            var dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+            html += '<div class="journey-card">';
+            html += '<div class="journey-card-header">';
+            html += '<h3>' + escHtml(startTitle) + '</h3>';
+            html += '<span class="journey-card-meta">' + nodeCount + ' topics &middot; ' + dateStr + '</span>';
+            html += '</div>';
+            html += '<div class="journey-tree">';
+            html += renderTree(journey.nodes, rootNode ? rootNode.id : null, 0);
+            html += '</div>';
+            html += '</div>';
+        });
+
+        container.innerHTML = html;
+    }
+
+    function renderTree(nodes, nodeId, depth) {
+        if (!nodeId) return '';
+        var nodeMap = {};
+        nodes.forEach(function(n) { nodeMap[n.id] = n; });
+
+        var node = nodeMap[nodeId];
+        if (!node) return '';
+
+        var children = nodes.filter(function(n) { return n.parentId === nodeId; });
+        var html = '<div class="journey-tree-node" style="margin-left:' + (depth * 20) + 'px">';
+        html += '<a href="/topic/' + escHtml(node.slug) + '" class="journey-tree-link">' + escHtml(node.title) + '</a>';
+        html += '</div>';
+
+        children.forEach(function(child) {
+            html += renderTree(nodes, child.id, depth + 1);
+        });
+
+        return html;
+    }
+
+    clearBtn.addEventListener('click', function() {
+        if (confirm('Clear all journey history?')) {
+            localStorage.removeItem(JOURNEY_KEY);
+            sessionStorage.removeItem('smartipedia-current-journey');
+            renderJourneys();
+        }
+    });
+
+    renderJourneys();
+})();
+</script>
+{% endblock %}

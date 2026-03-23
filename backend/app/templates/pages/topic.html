@@ -63,6 +63,16 @@
 {% endblock %}
 
 {% block content %}
+<!-- Journey breadcrumb -->
+<div class="journey-bar" id="journey-bar" style="display:none">
+    <div class="journey-bar-inner">
+        <div class="journey-trail" id="journey-trail"></div>
+        <a href="/journeys" class="journey-view-all" title="View full journey tree">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/></svg>
+        </a>
+    </div>
+</div>
+
 <div class="topic-layout">
     <!-- Left: Table of Contents -->
     <aside class="toc-sidebar" id="toc-sidebar">
@@ -161,4 +171,5 @@
 {# Data for JS #}
 <script id="sources-data" type="application/json">{{ sources_json|safe }}</script>
 <script id="related-data" type="application/json">{{ related_json|safe }}</script>
+<script id="topic-data" type="application/json">{"slug": "{{ topic.slug }}", "title": "{{ topic.title|e }}"}</script>
 {% endblock %}

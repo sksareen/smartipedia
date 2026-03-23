@@ -145,6 +145,14 @@ async def suggest_page(request: Request, db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.get("/journeys", response_class=HTMLResponse)
+async def journeys_page(request: Request):
+    return request.app.state.templates.TemplateResponse(
+        "pages/journeys.html",
+        {"request": request},
+    )
+
+
 @router.get("/graph", response_class=HTMLResponse)
 async def graph_page(request: Request):
     return request.app.state.templates.TemplateResponse(

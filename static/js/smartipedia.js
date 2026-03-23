@@ -78,6 +78,9 @@
 
     // ==================== RABBIT HOLE (text selection) ====================
     initRabbitHole();
+
+    // ==================== JOURNEY TRACKER ====================
+    initJourney();
   });
 
   // ==================== CMD+K ====================
@@ -528,6 +531,155 @@
       clearTimeout(scrollTimer);
       scrollTimer = setTimeout(hideExploreTooltip, 100);
     }, { passive: true });
+  }
+
+  // ==================== JOURNEY TRACKER ====================
+  var JOURNEY_KEY = 'smartipedia-journeys';
+  var JOURNEY_SESSION_KEY = 'smartipedia-current-journey';
+
+  function getJourneys() {
+    try { return JSON.parse(localStorage.getItem(JOURNEY_KEY)) || []; }
+    catch (e) { return []; }
+  }
+
+  function saveJourneys(journeys) {
+    localStorage.setItem(JOURNEY_KEY, JSON.stringify(journeys));
+  }
+
+  function getCurrentJourneyId() {
+    return sessionStorage.getItem(JOURNEY_SESSION_KEY);
+  }
+
+  function setCurrentJourneyId(id) {
+    sessionStorage.setItem(JOURNEY_SESSION_KEY, id);
+  }
+
+  function initJourney() {
+    var topicDataEl = document.getElementById('topic-data');
+    if (!topicDataEl) return;
+
+    var topicData;
+    try { topicData = JSON.parse(topicDataEl.textContent); }
+    catch (e) { return; }
+
+    var slug = topicData.slug;
+    var title = topicData.title;
+    var journeys = getJourneys();
+    var journeyId = getCurrentJourneyId();
+    var journey = null;
+    var nodeId = null;
+
+    // Find or figure out the current journey
+    if (journeyId) {
+      journey = journeys.find(function (j) { return j.id === journeyId; });
+    }
+
+    // Check referrer to detect navigation from another topic page
+    var fromTopic = null;
+    var ref = document.referrer;
+    if (ref) {
+      var refMatch = ref.match(/\/topic\/([^\/\?#]+)/);
+      if (refMatch) fromTopic = refMatch[1];
+    }
+
+    if (journey) {
+      // Check if we're already in this journey at this slug
+      var existingNode = journey.nodes.find(function (n) { return n.slug === slug; });
+      if (existingNode) {
+        nodeId = existingNode.id;
+      } else {
+        // Add new node to journey
+        var parentId = null;
+        if (fromTopic) {
+          var parentNode = journey.nodes.find(function (n) { return n.slug === fromTopic; });
+          if (parentNode) parentId = parentNode.id;
+        }
+        nodeId = 'n' + Date.now();
+        journey.nodes.push({
+          id: nodeId,
+          slug: slug,
+          title: title,
+          parentId: parentId,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      journey.updatedAt = new Date().toISOString();
+    } else {
+      // Start a new journey
+      nodeId = 'n' + Date.now();
+      journey = {
+        id: 'j' + Date.now(),
+        startedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        nodes: [{
+          id: nodeId,
+          slug: slug,
+          title: title,
+          parentId: null,
+          timestamp: new Date().toISOString(),
+        }],
+      };
+      journeys.push(journey);
+    }
+
+    setCurrentJourneyId(journey.id);
+    saveJourneys(journeys);
+
+    // Render breadcrumb trail
+    renderJourneyBreadcrumb(journey, nodeId);
+  }
+
+  function renderJourneyBreadcrumb(journey, currentNodeId) {
+    var bar = document.getElementById('journey-bar');
+    var trail = document.getElementById('journey-trail');
+    if (!bar || !trail || !journey || journey.nodes.length < 2) return;
+
+    // Build path from root to current node
+    var nodeMap = {};
+    journey.nodes.forEach(function (n) { nodeMap[n.id] = n; });
+
+    var path = [];
+    var node = nodeMap[currentNodeId];
+    while (node) {
+      path.unshift(node);
+      node = node.parentId ? nodeMap[node.parentId] : null;
+    }
+
+    // If path is just one node, don't show breadcrumb
+    if (path.length < 2) return;
+
+    var html = '';
+    path.forEach(function (n, i) {
+      if (i > 0) html += '<span class="journey-sep">&rsaquo;</span>';
+      if (n.id === currentNodeId) {
+        html += '<span class="journey-current">' + escHtml(n.title) + '</span>';
+      } else {
+        html += '<a href="/topic/' + escHtml(n.slug) + '" class="journey-link">' + escHtml(n.title) + '</a>';
+      }
+    });
+
+    // Add suggested next branches (greyed out)
+    var relatedEl = document.getElementById('related-data');
+    if (relatedEl) {
+      try {
+        var allTopics = JSON.parse(relatedEl.textContent);
+        var visitedSlugs = {};
+        journey.nodes.forEach(function (n) { visitedSlugs[n.slug] = true; });
+        var suggestions = allTopics.filter(function (t) {
+          return !visitedSlugs[t.slug];
+        }).slice(0, 3);
+        if (suggestions.length > 0) {
+          html += '<span class="journey-sep">&rsaquo;</span>';
+          suggestions.forEach(function (s, i) {
+            if (i > 0) html += '<span class="journey-suggested-sep">/</span>';
+            html += '<a href="/topic/' + escHtml(s.slug) + '" class="journey-suggested">' + escHtml(s.title) + '</a>';
+          });
+        }
+      } catch (e) {}
+    }
+
+    trail.innerHTML = html;
+    bar.style.display = 'block';
   }
 
   // ==================== HELPERS ====================

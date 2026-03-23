@@ -54,8 +54,8 @@
     </script>
     {% endblock %}
 
-    <link rel="stylesheet" href="/static/css/style.css?v=7">
-    <script src="/static/js/smartipedia.js?v=7"></script>
+    <link rel="stylesheet" href="/static/css/style.css?v=8">
+    <script src="/static/js/smartipedia.js?v=8"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     {% if umami_script %}
     <script defer src="https://analytics.smartipedia.com/script.js" data-website-id="{{ umami_website_id }}"></script>
@@ -118,6 +118,8 @@
 
     <footer class="footer">
         <div class="footer-content">
+            <a href="/journeys">My Journeys</a>
+            <span class="footer-sep">&middot;</span>
             <a href="/stats">Stats</a>
             <span class="footer-sep">&middot;</span>
             <a href="https://github.com/sksareen/smartipedia">Open Source</a>
