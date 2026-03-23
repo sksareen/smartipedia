@@ -536,6 +536,8 @@
   // ==================== JOURNEY TRACKER ====================
   var JOURNEY_KEY = 'smartipedia-journeys';
   var JOURNEY_SESSION_KEY = 'smartipedia-current-journey';
+  var JOURNEY_LAST_SLUG_KEY = 'smartipedia-last-slug';
+  var JOURNEY_LAST_NODE_KEY = 'smartipedia-last-node';
 
   function getJourneys() {
     try { return JSON.parse(localStorage.getItem(JOURNEY_KEY)) || []; }
@@ -574,13 +576,9 @@
       journey = journeys.find(function (j) { return j.id === journeyId; });
     }
 
-    // Check referrer to detect navigation from another topic page
-    var fromTopic = null;
-    var ref = document.referrer;
-    if (ref) {
-      var refMatch = ref.match(/\/topic\/([^\/\?#]+)/);
-      if (refMatch) fromTopic = refMatch[1];
-    }
+    // Get the previous topic from sessionStorage (reliable, unlike referrer)
+    var fromSlug = sessionStorage.getItem(JOURNEY_LAST_SLUG_KEY);
+    var fromNodeId = sessionStorage.getItem(JOURNEY_LAST_NODE_KEY);
 
     if (journey) {
       // Check if we're already in this journey at this slug
@@ -588,11 +586,10 @@
       if (existingNode) {
         nodeId = existingNode.id;
       } else {
-        // Add new node to journey
+        // Add new node to journey, linked to the page we came from
         var parentId = null;
-        if (fromTopic) {
-          var parentNode = journey.nodes.find(function (n) { return n.slug === fromTopic; });
-          if (parentNode) parentId = parentNode.id;
+        if (fromSlug && fromSlug !== slug && fromNodeId) {
+          parentId = fromNodeId;
         }
         nodeId = 'n' + Date.now();
         journey.nodes.push({
@@ -623,6 +620,9 @@
     }
 
     setCurrentJourneyId(journey.id);
+    // Store current slug+nodeId so the NEXT page knows its parent
+    sessionStorage.setItem(JOURNEY_LAST_SLUG_KEY, slug);
+    sessionStorage.setItem(JOURNEY_LAST_NODE_KEY, nodeId);
     saveJourneys(journeys);
 
     // Render breadcrumb trail
