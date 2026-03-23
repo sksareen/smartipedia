@@ -1600,7 +1600,13 @@ body {
     .hero .version-badge { margin-left: 0; margin-top: 0.5rem; }
     .nav-logo { font-size: 1rem; }
     .version-badge { font-size: 0.625rem; padding: 0.125rem 0.375rem; }
-    .nav-search-btn { display: none; }
+    .nav-search-btn {
+        min-width: unset;
+        padding: 0.4rem 0.6rem;
+        border: none;
+        background: none;
+    }
+    .nav-search-text, .nav-search-kbd { display: none; }
     .suggest-btn { display: none; }
     .edit-controls { flex-direction: column; }
     .source-tooltip, .keyword-tooltip, .explore-tooltip {
