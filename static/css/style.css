@@ -131,12 +131,21 @@ body {
     align-items: center;
     gap: 0.75rem;
 }
+.nav-logo-img {
+    height: 28px;
+    width: 28px;
+    object-fit: contain;
+    border-radius: 4px;
+}
 .nav-logo {
     font-family: var(--font-serif);
     font-size: 1.25rem;
     font-weight: 400;
     color: var(--text);
     text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
 }
 .version-badge {
     display: inline-block;
