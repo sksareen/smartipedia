@@ -56,8 +56,8 @@
 
     <link rel="icon" type="image/png" href="/static/logo.png">
     <link rel="apple-touch-icon" href="/static/logo.png">
-    <link rel="stylesheet" href="/static/css/style.css?v=16">
-    <script src="/static/js/smartipedia.js?v=16"></script>
+    <link rel="stylesheet" href="/static/css/style.css?v=17">
+    <script src="/static/js/smartipedia.js?v=17"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     {% if umami_script %}
     <script defer src="https://analytics.smartipedia.com/script.js" data-website-id="{{ umami_website_id }}"></script>
@@ -140,6 +140,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/></svg>
                 <span>Journeys</span>
             </a>
+            <button class="notepad-new-journey-btn" id="notepad-new-journey" title="Start new journey" onclick="event.stopPropagation();">+</button>
             <div class="notepad-bar-left">
                 <div class="notepad-journey-trail" id="notepad-journey-trail"></div>
             </div>

@@ -1957,6 +1957,27 @@ body {
 }
 .notepad-journeys-link:hover { color: var(--text); }
 .notepad-journeys-link svg { flex-shrink: 0; }
+.notepad-new-journey-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: var(--font-sans);
+    flex-shrink: 0;
+    line-height: 1;
+    transition: border-color 0.15s, color 0.15s;
+}
+.notepad-new-journey-btn:hover {
+    border-color: var(--border-hover);
+    color: var(--text);
+}
 .notepad-toggle-btn {
     display: flex;
     align-items: center;

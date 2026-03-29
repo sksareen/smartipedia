@@ -954,6 +954,16 @@
       showToast('Downloaded .md file');
     });
 
+    // ---- New journey button ----
+    var newJourneyBtn = document.getElementById('notepad-new-journey');
+    if (newJourneyBtn) newJourneyBtn.addEventListener('click', function () {
+      sessionStorage.removeItem(JOURNEY_SESSION_KEY);
+      sessionStorage.removeItem(JOURNEY_LAST_SLUG_KEY);
+      sessionStorage.removeItem(JOURNEY_LAST_NODE_KEY);
+      updateNotepadJourneyTrail();
+      showToast('New journey started — visit a topic to begin');
+    });
+
     // ---- Journey trail in collapsed bar ----
     updateNotepadJourneyTrail();
   }
