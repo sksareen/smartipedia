@@ -33,9 +33,11 @@
     }
     if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
 
-    // Cmd+I / Ctrl+I to toggle dark mode
+    // Cmd+I / Ctrl+I to toggle dark mode (skip if notepad editor is focused)
     document.addEventListener('keydown', function (e) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'i') {
+        var active = document.activeElement;
+        if (active && active.id === 'notepad-editor') return; // let italic work in editor
         e.preventDefault();
         toggleTheme();
       }
@@ -81,6 +83,9 @@
 
     // ==================== JOURNEY TRACKER ====================
     initJourney();
+
+    // ==================== NOTEPAD DRAWER ====================
+    initNotepad();
   });
 
   // ==================== CMD+K ====================
@@ -680,6 +685,392 @@
 
     trail.innerHTML = html;
     bar.style.display = 'block';
+  }
+
+  // ==================== NOTEPAD DRAWER ====================
+  var NOTEPAD_KEY = 'smartipedia-notepad-';
+  var NOTEPAD_CLIPPINGS_KEY = 'smartipedia-clippings-';
+
+  function initNotepad() {
+    var drawer = document.getElementById('notepad-drawer');
+    var panel = document.getElementById('notepad-panel');
+    var toggleBtn = document.getElementById('notepad-toggle-btn');
+    var closeBtn = document.getElementById('notepad-close-btn');
+    var collapsedBar = document.getElementById('notepad-collapsed-bar');
+    var editor = document.getElementById('notepad-editor');
+    var clippingsList = document.getElementById('notepad-clippings-list');
+    var clippingsContainer = document.getElementById('notepad-clippings');
+    var copyBtn = document.getElementById('notepad-copy-btn');
+    var downloadBtn = document.getElementById('notepad-download-btn');
+    var toast = document.getElementById('notepad-toast');
+
+    if (!drawer || !editor) return;
+
+    var journeyId = getCurrentJourneyId();
+
+    var DRAWER_STATE_KEY = 'smartipedia-drawer-open';
+
+    // ---- Toggle open/close ----
+    function openDrawer() {
+      drawer.classList.add('open');
+      sessionStorage.setItem(DRAWER_STATE_KEY, '1');
+      editor.focus();
+    }
+    function closeDrawer() {
+      drawer.classList.remove('open');
+      sessionStorage.setItem(DRAWER_STATE_KEY, '0');
+    }
+    function toggleDrawer() {
+      if (drawer.classList.contains('open')) closeDrawer();
+      else openDrawer();
+    }
+
+    // Restore drawer state from previous page
+    if (sessionStorage.getItem(DRAWER_STATE_KEY) === '1') {
+      drawer.classList.add('open');
+    }
+
+    if (toggleBtn) toggleBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleDrawer(); });
+    if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
+    if (collapsedBar) collapsedBar.addEventListener('click', function (e) {
+      if (e.target.closest('.notepad-toggle-btn')) return;
+      if (e.target.closest('a')) return; // let breadcrumb/journey links navigate
+      toggleDrawer();
+    });
+
+    // Cmd+J / Ctrl+J
+    document.addEventListener('keydown', function (e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
+        e.preventDefault();
+        toggleDrawer();
+      }
+      // Esc to close drawer if open
+      if (e.key === 'Escape' && drawer.classList.contains('open')) {
+        closeDrawer();
+      }
+    });
+
+    // ---- Format buttons ----
+    document.querySelectorAll('.notepad-fmt-btn').forEach(function (btn) {
+      btn.addEventListener('mousedown', function (e) {
+        e.preventDefault(); // prevent focus loss
+        var cmd = btn.dataset.cmd;
+        document.execCommand(cmd, false, null);
+        updateFormatButtons();
+      });
+    });
+
+    function updateFormatButtons() {
+      document.querySelectorAll('.notepad-fmt-btn').forEach(function (btn) {
+        var cmd = btn.dataset.cmd;
+        btn.classList.toggle('active', document.queryCommandState(cmd));
+      });
+    }
+    editor.addEventListener('keyup', updateFormatButtons);
+    editor.addEventListener('mouseup', updateFormatButtons);
+
+    // ---- Persistence (per journey) ----
+    function getNoteKey() {
+      var jid = getCurrentJourneyId();
+      return jid ? NOTEPAD_KEY + jid : NOTEPAD_KEY + 'global';
+    }
+    function getClippingsKey() {
+      var jid = getCurrentJourneyId();
+      return jid ? NOTEPAD_CLIPPINGS_KEY + jid : NOTEPAD_CLIPPINGS_KEY + 'global';
+    }
+
+    // Load saved content
+    var savedContent = localStorage.getItem(getNoteKey());
+    if (savedContent) editor.innerHTML = savedContent;
+
+    // Save on input (debounced)
+    var saveTimer = null;
+    editor.addEventListener('input', function () {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(function () {
+        localStorage.setItem(getNoteKey(), editor.innerHTML);
+      }, 300);
+    });
+
+    // ---- Clippings ----
+    function getClippings() {
+      try { return JSON.parse(localStorage.getItem(getClippingsKey())) || []; }
+      catch (e) { return []; }
+    }
+    function saveClippings(clips) {
+      localStorage.setItem(getClippingsKey(), JSON.stringify(clips));
+    }
+
+    function insertIntoEditor(text) {
+      editor.focus();
+      // Insert at end
+      var sel = window.getSelection();
+      var range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      // Insert as a new block
+      document.execCommand('insertHTML', false, '<div>' + escHtml(text) + '</div>');
+      // Save
+      localStorage.setItem(getNoteKey(), editor.innerHTML);
+    }
+
+    function renderClippings() {
+      var clips = getClippings();
+      if (!clippingsList) return;
+      if (clips.length === 0) {
+        clippingsList.innerHTML = '<div style="padding:0.5rem;color:var(--text-light);font-size:0.78rem;">Copy text on any page to capture it here.</div>';
+        return;
+      }
+      clippingsList.innerHTML = '';
+      clips.forEach(function (clip, i) {
+        var div = document.createElement('div');
+        div.className = 'notepad-clipping';
+        div.title = 'Click to insert into notes';
+
+        var textSpan = document.createElement('span');
+        textSpan.className = 'notepad-clipping-text';
+        textSpan.textContent = clip.text;
+        div.appendChild(textSpan);
+
+        if (clip.source) {
+          var link = document.createElement('a');
+          link.className = 'notepad-clipping-source';
+          link.href = '/topic/' + clip.sourceSlug;
+          link.textContent = clip.source;
+          link.addEventListener('click', function (e) { e.stopPropagation(); });
+          div.appendChild(link);
+        }
+
+        var removeBtn = document.createElement('button');
+        removeBtn.className = 'notepad-clipping-remove';
+        removeBtn.textContent = '\u00d7';
+        removeBtn.title = 'Remove';
+        removeBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var c = getClippings();
+          c.splice(i, 1);
+          saveClippings(c);
+          renderClippings();
+        });
+        div.appendChild(removeBtn);
+
+        // Click to insert into editor
+        div.addEventListener('click', function () {
+          insertIntoEditor(clip.text);
+          showToast('Inserted into notes');
+        });
+
+        clippingsList.appendChild(div);
+      });
+    }
+    renderClippings();
+
+    // ---- Copy intercept: capture text copied from topic content ----
+    document.addEventListener('copy', function () {
+      var sel = window.getSelection();
+      var text = sel ? sel.toString().trim() : '';
+      if (!text || text.length < 3) return;
+
+      // Only capture from topic content area
+      var topicContent = document.querySelector('.topic-content');
+      if (!topicContent) return;
+      var node = sel.anchorNode;
+      if (!node) return;
+      var el = node.nodeType === 3 ? node.parentElement : node;
+      if (!topicContent.contains(el)) return;
+
+      // Get current topic info
+      var topicDataEl = document.getElementById('topic-data');
+      var sourceName = '';
+      var sourceSlug = '';
+      if (topicDataEl) {
+        try {
+          var td = JSON.parse(topicDataEl.textContent);
+          sourceName = td.title || '';
+          sourceSlug = td.slug || '';
+        } catch (e) {}
+      }
+
+      var clips = getClippings();
+      clips.push({ text: text.slice(0, 500), source: sourceName, sourceSlug: sourceSlug, ts: Date.now() });
+      saveClippings(clips);
+      renderClippings();
+      showToast('Clipped to notepad');
+    });
+
+    // ---- Toast ----
+    var toastTimer = null;
+    function showToast(msg) {
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.classList.add('visible');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () {
+        toast.classList.remove('visible');
+      }, 2000);
+    }
+
+    // ---- Export: Copy to clipboard ----
+    if (copyBtn) copyBtn.addEventListener('click', function () {
+      var md = htmlToMarkdown(editor);
+      var clips = getClippings();
+      if (clips.length > 0) {
+        md += '\n\n---\n\n## Clippings\n\n';
+        clips.forEach(function (c) {
+          md += '> ' + c.text.replace(/\n/g, '\n> ') + '\n';
+          if (c.source) md += '> — [' + c.source + '](/topic/' + c.sourceSlug + ')\n';
+          md += '\n';
+        });
+      }
+      navigator.clipboard.writeText(md).then(function () {
+        showToast('Copied to clipboard');
+      });
+    });
+
+    // ---- Export: Download as .md ----
+    if (downloadBtn) downloadBtn.addEventListener('click', function () {
+      var md = htmlToMarkdown(editor);
+      var clips = getClippings();
+      if (clips.length > 0) {
+        md += '\n\n---\n\n## Clippings\n\n';
+        clips.forEach(function (c) {
+          md += '> ' + c.text.replace(/\n/g, '\n> ') + '\n';
+          if (c.source) md += '> — [' + c.source + '](/topic/' + c.sourceSlug + ')\n';
+          md += '\n';
+        });
+      }
+      var blob = new Blob([md], { type: 'text/markdown' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      var dateStr = new Date().toISOString().slice(0, 10);
+      a.download = 'smartipedia-notes-' + dateStr + '.md';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Downloaded .md file');
+    });
+
+    // ---- Journey trail in collapsed bar ----
+    updateNotepadJourneyTrail();
+  }
+
+  function updateNotepadJourneyTrail() {
+    var trail = document.getElementById('notepad-journey-trail');
+    if (!trail) return;
+
+    var journeyId = getCurrentJourneyId();
+    if (!journeyId) {
+      trail.innerHTML = '<span style="color:var(--text-light);font-size:0.82rem;">Start exploring to begin a journey</span>';
+      return;
+    }
+
+    var journeys = getJourneys();
+    var journey = journeys.find(function (j) { return j.id === journeyId; });
+    if (!journey || journey.nodes.length === 0) {
+      trail.innerHTML = '<span style="color:var(--text-light);font-size:0.82rem;">Start exploring to begin a journey</span>';
+      return;
+    }
+
+    // Determine current slug from the page URL
+    var currentSlug = '';
+    var pathMatch = window.location.pathname.match(/^\/topic\/(.+)$/);
+    if (pathMatch) currentSlug = decodeURIComponent(pathMatch[1]);
+
+    var nodeMap = {};
+    journey.nodes.forEach(function (n) { nodeMap[n.id] = n; });
+
+    // Build children map: parentId -> [child nodes], sorted by timestamp (most recent last)
+    var childrenMap = {};
+    journey.nodes.forEach(function (n) {
+      if (n.parentId) {
+        if (!childrenMap[n.parentId]) childrenMap[n.parentId] = [];
+        childrenMap[n.parentId].push(n);
+      }
+    });
+    // Sort children by timestamp so most recent branch is last
+    Object.keys(childrenMap).forEach(function (pid) {
+      childrenMap[pid].sort(function (a, b) {
+        return (a.timestamp || '').localeCompare(b.timestamp || '');
+      });
+    });
+
+    // Find the node matching current slug
+    var currentNode = null;
+    if (currentSlug) {
+      currentNode = journey.nodes.find(function (n) { return n.slug === currentSlug; });
+    }
+    if (!currentNode) currentNode = journey.nodes[journey.nodes.length - 1];
+
+    // Build path from root to current (backward walk)
+    var backPath = [];
+    var node = currentNode;
+    while (node) {
+      backPath.unshift(node);
+      node = node.parentId ? nodeMap[node.parentId] : null;
+    }
+
+    // Build forward path from current (follow most recent child at each step)
+    var forwardPath = [];
+    var fwd = currentNode;
+    while (true) {
+      var children = childrenMap[fwd.id];
+      if (!children || children.length === 0) break;
+      // Pick the most recently visited child (last after sort)
+      fwd = children[children.length - 1];
+      forwardPath.push(fwd);
+    }
+
+    // Render: [...backPath] [CURRENT] [...forwardPath faded]
+    var totalLen = backPath.length + forwardPath.length;
+    var html = '';
+
+    // Truncate back path if total is too long (keep last 4 back nodes + all forward)
+    var backStart = Math.max(0, backPath.length - 4);
+    if (backStart > 0) html += '<span style="color:var(--text-light);">&hellip;</span><span class="notepad-sep">&rsaquo;</span>';
+
+    for (var i = backStart; i < backPath.length; i++) {
+      if (i > backStart) html += '<span class="notepad-sep">&rsaquo;</span>';
+      var n = backPath[i];
+      if (n.slug === currentSlug) {
+        html += '<span class="notepad-current">' + escHtml(n.title) + '</span>';
+      } else {
+        html += '<a href="/topic/' + escHtml(n.slug) + '" class="notepad-visited">' + escHtml(n.title) + '</a>';
+      }
+    }
+
+    // Forward path (faded, clickable — "resume" nodes)
+    for (var j = 0; j < forwardPath.length; j++) {
+      html += '<span class="notepad-sep">&rsaquo;</span>';
+      var f = forwardPath[j];
+      html += '<a href="/topic/' + escHtml(f.slug) + '" class="notepad-forward">' + escHtml(f.title) + '</a>';
+    }
+
+    trail.innerHTML = html;
+  }
+
+  // Simple HTML to Markdown converter for the editor content
+  function htmlToMarkdown(editorEl) {
+    var html = editorEl.innerHTML;
+    // Convert common HTML to markdown
+    var md = html
+      .replace(/<b>|<strong>/gi, '**').replace(/<\/b>|<\/strong>/gi, '**')
+      .replace(/<i>|<em>/gi, '*').replace(/<\/i>|<\/em>/gi, '*')
+      .replace(/<u>/gi, '__').replace(/<\/u>/gi, '__')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<div>/gi, '\n').replace(/<\/div>/gi, '')
+      .replace(/<p>/gi, '\n').replace(/<\/p>/gi, '')
+      .replace(/<[^>]+>/g, '') // strip remaining tags
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/^\n+/, '') // trim leading newlines
+      .replace(/\n{3,}/g, '\n\n'); // collapse excessive newlines
+    return md;
   }
 
   // ==================== HELPERS ====================

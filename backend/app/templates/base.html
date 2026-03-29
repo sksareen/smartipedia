@@ -56,8 +56,8 @@
 
     <link rel="icon" type="image/png" href="/static/logo.png">
     <link rel="apple-touch-icon" href="/static/logo.png">
-    <link rel="stylesheet" href="/static/css/style.css?v=13">
-    <script src="/static/js/smartipedia.js?v=13"></script>
+    <link rel="stylesheet" href="/static/css/style.css?v=16">
+    <script src="/static/js/smartipedia.js?v=16"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     {% if umami_script %}
     <script defer src="https://analytics.smartipedia.com/script.js" data-website-id="{{ umami_website_id }}"></script>
@@ -90,15 +90,6 @@
                 <button id="theme-toggle" class="nav-btn" title="Toggle dark mode (Cmd+I)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
                 </button>
-            </div>
-        </div>
-        <!-- Journey breadcrumb (populated by JS on topic pages) -->
-        <div class="journey-bar" id="journey-bar" style="display:none">
-            <div class="journey-bar-inner">
-                <a href="/journeys" class="journey-view-all" title="View full journey tree">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/></svg>
-                </a>
-                <div class="journey-trail" id="journey-trail"></div>
             </div>
         </div>
     </nav>
@@ -142,6 +133,56 @@
             <a href="https://github.com/sksareen/smartipedia/blob/main/LICENSE">MIT License</a>
         </div>
     </footer>
+    <!-- Notepad Drawer -->
+    <div id="notepad-drawer" class="notepad-drawer">
+        <div class="notepad-collapsed-bar" id="notepad-collapsed-bar">
+            <a href="/journeys" class="notepad-journeys-link" title="View all journeys" onclick="event.stopPropagation();">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/></svg>
+                <span>Journeys</span>
+            </a>
+            <div class="notepad-bar-left">
+                <div class="notepad-journey-trail" id="notepad-journey-trail"></div>
+            </div>
+            <button class="notepad-toggle-btn" id="notepad-toggle-btn" title="Open notepad (Cmd+J)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                <span>Notes</span>
+                <kbd class="notepad-kbd">&#8984;J</kbd>
+            </button>
+        </div>
+        <div class="notepad-panel" id="notepad-panel">
+            <div class="notepad-toolbar">
+                <div class="notepad-toolbar-left">
+                    <button class="notepad-fmt-btn" data-cmd="bold" title="Bold (Cmd+B)"><strong>B</strong></button>
+                    <button class="notepad-fmt-btn" data-cmd="italic" title="Italic (Cmd+I)"><em>I</em></button>
+                    <button class="notepad-fmt-btn" data-cmd="underline" title="Underline (Cmd+U)"><u>U</u></button>
+                </div>
+                <div class="notepad-toolbar-right">
+                    <button class="notepad-action-btn" id="notepad-copy-btn" title="Copy notes to clipboard">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        <span>Copy</span>
+                    </button>
+                    <button class="notepad-action-btn" id="notepad-download-btn" title="Download as .md">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>.md</span>
+                    </button>
+                    <button class="notepad-close-btn" id="notepad-close-btn" title="Close (Esc)">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="notepad-body">
+                <div class="notepad-editor" id="notepad-editor" contenteditable="true" placeholder="Write notes, draft tweets, capture ideas..."></div>
+                <div class="notepad-clippings" id="notepad-clippings">
+                    <div class="notepad-clippings-header">Clippings</div>
+                    <div class="notepad-clippings-list" id="notepad-clippings-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notepad toast -->
+    <div class="notepad-toast" id="notepad-toast"></div>
+
     <!-- Generating overlay -->
     <div class="generating-overlay" id="generating-overlay">
         <div class="generating-spinner"></div>
