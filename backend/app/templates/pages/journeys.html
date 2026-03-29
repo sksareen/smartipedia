@@ -63,6 +63,9 @@
             html += '<h3>' + escHtml(startTitle) + '</h3>';
             html += '<span class="journey-card-meta">' + nodeCount + ' topic' + (nodeCount !== 1 ? 's' : '') + ' explored &middot; ' + dateStr + '</span>';
             html += '</div>';
+            // Continue button — resume this journey from the last visited node
+            var lastNode = journey.nodes[journey.nodes.length - 1];
+            html += '<a href="/topic/' + escHtml(lastNode.slug) + '" class="journey-continue-btn" data-journey-id="' + escHtml(journey.id) + '" data-last-slug="' + escHtml(lastNode.slug) + '" data-last-node="' + escHtml(lastNode.id) + '">Continue &rarr;</a>';
             html += '<div class="journey-tree">';
 
             // Build tree from all root nodes
@@ -105,6 +108,17 @@
 
         return html;
     }
+
+    // Continue journey buttons — set session state so the journey resumes
+    container.addEventListener('click', function(e) {
+        var btn = e.target.closest('.journey-continue-btn');
+        if (!btn) return;
+        e.preventDefault();
+        sessionStorage.setItem('smartipedia-current-journey', btn.dataset.journeyId);
+        sessionStorage.setItem('smartipedia-last-slug', btn.dataset.lastSlug);
+        sessionStorage.setItem('smartipedia-last-node', btn.dataset.lastNode);
+        window.location.href = btn.href;
+    });
 
     clearBtn.addEventListener('click', function() {
         if (confirm('Clear all journey history?')) {
