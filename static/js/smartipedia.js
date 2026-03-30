@@ -66,6 +66,21 @@
       });
     }
 
+    // ==================== USER MENU ====================
+    var avatarBtn = document.getElementById('nav-avatar-btn');
+    var userDropdown = document.getElementById('nav-user-dropdown');
+    if (avatarBtn && userDropdown) {
+      avatarBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        userDropdown.classList.toggle('open');
+      });
+      document.addEventListener('click', function (e) {
+        if (!e.target.closest('.nav-user-menu')) {
+          userDropdown.classList.remove('open');
+        }
+      });
+    }
+
     // ==================== CMD+K MODAL ====================
     initCmdK();
 
