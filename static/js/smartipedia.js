@@ -131,6 +131,25 @@
     // Keyboard nav in results
     var selectedIdx = -1;
     input.addEventListener('keydown', function (e) {
+      // Cmd+Enter / Ctrl+Enter: generate article from search query
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        var q = input.value.trim();
+        if (q.length >= 2) {
+          var form = document.createElement('form');
+          form.method = 'POST';
+          form.action = '/generate-async';
+          var inp = document.createElement('input');
+          inp.type = 'hidden';
+          inp.name = 'title';
+          inp.value = q;
+          form.appendChild(inp);
+          document.body.appendChild(form);
+          form.submit();
+        }
+        return;
+      }
+
       var results = document.querySelectorAll('#cmdk-results .cmdk-result');
       if (!results.length) return;
 
