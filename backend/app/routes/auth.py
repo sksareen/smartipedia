@@ -85,6 +85,16 @@ if settings.google_client_id:
 
 # ---- Routes ----
 
+@router.get("/signin")
+async def signin_page(request: Request):
+    """Sign-in page with OAuth options."""
+    if get_user_id_from_cookie(request):
+        return RedirectResponse("/")
+    return request.app.state.templates.TemplateResponse(
+        "pages/signin.html", {"request": request}
+    )
+
+
 @router.get("/login/{provider}")
 async def login(provider: str, request: Request):
     """Redirect to OAuth provider."""

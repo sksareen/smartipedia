@@ -248,6 +248,55 @@ body {
 .nav-login-btn:hover { border-color: var(--border-hover) !important; }
 .nav-login-btn svg { flex-shrink: 0; }
 
+/* Sign-in page */
+.signin-page {
+    max-width: 400px;
+    margin: 0 auto;
+    padding: 6rem 1.5rem;
+    text-align: center;
+}
+.signin-page h1 {
+    font-family: var(--font-serif);
+    font-size: 1.5rem;
+    font-weight: 400;
+    margin-bottom: 0.5rem;
+}
+.signin-desc {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 2.5rem;
+}
+.signin-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+}
+.signin-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 0.75rem 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-card);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-family: var(--font-sans);
+    transition: border-color 0.2s, background 0.2s;
+}
+.signin-btn:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+}
+.signin-btn svg { flex-shrink: 0; }
+.signin-note {
+    font-size: 0.78rem;
+    color: var(--text-light);
+}
+
 /* ==================== CONTAINER ==================== */
 .container {
     position: relative;
