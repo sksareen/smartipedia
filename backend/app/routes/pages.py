@@ -30,11 +30,10 @@ router = APIRouter()
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request, db: AsyncSession = Depends(get_db)):
     recent = await get_recent_topics(db, limit=12)
-    popular = await get_popular_topics(db, limit=12)
     count = await get_topic_count(db)
     return request.app.state.templates.TemplateResponse(
         "pages/home.html",
-        {"request": request, "recent": recent, "popular": popular, "topic_count": count},
+        {"request": request, "recent": recent, "topic_count": count},
     )
 
 

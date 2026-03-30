@@ -47,6 +47,89 @@
     </div>
 </section>
 
+<!-- Recent Journeys (from localStorage) -->
+<div class="inner-container" id="recent-journeys-section" style="display:none">
+    <section class="topic-section">
+        <div class="topic-section-header">
+            <h2>Recent Journeys</h2>
+            <a href="/journeys" class="topic-section-link">View all &rarr;</a>
+        </div>
+        <div class="topic-grid" id="recent-journeys-grid"></div>
+    </section>
+</div>
+
+<script>
+(function() {
+    var JOURNEY_KEY = 'smartipedia-journeys';
+    var section = document.getElementById('recent-journeys-section');
+    var grid = document.getElementById('recent-journeys-grid');
+
+    function escHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str || '';
+        return div.innerHTML;
+    }
+
+    try {
+        var journeys = JSON.parse(localStorage.getItem(JOURNEY_KEY)) || [];
+    } catch (e) {
+        var journeys = [];
+    }
+
+    if (!journeys.length) return;
+
+    // Sort newest first, take up to 6
+    journeys.sort(function(a, b) {
+        return new Date(b.updatedAt) - new Date(a.updatedAt);
+    });
+    var recent = journeys.slice(0, 6);
+
+    var html = '';
+    recent.forEach(function(journey) {
+        if (!journey.nodes || !journey.nodes.length) return;
+
+        var rootNodes = journey.nodes.filter(function(n) { return !n.parentId; });
+        if (!rootNodes.length) rootNodes = [journey.nodes[0]];
+
+        var startTitle = rootNodes[0].title || 'Unknown';
+        var nodeCount = journey.nodes.length;
+        var lastNode = journey.nodes[journey.nodes.length - 1];
+        var date = new Date(journey.updatedAt || journey.startedAt);
+        var dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+        // Show path preview: first few node titles
+        var pathTitles = journey.nodes.slice(0, 3).map(function(n) { return n.title; });
+        var pathStr = pathTitles.join(' → ');
+        if (journey.nodes.length > 3) pathStr += ' …';
+
+        html += '<a href="/topic/' + escHtml(lastNode.slug) + '" class="topic-card journey-home-card"'
+            + ' data-journey-id="' + escHtml(journey.id) + '"'
+            + ' data-last-slug="' + escHtml(lastNode.slug) + '"'
+            + ' data-last-node="' + escHtml(lastNode.id) + '">';
+        html += '<h3>' + escHtml(startTitle) + '</h3>';
+        html += '<p>' + escHtml(pathStr) + '</p>';
+        html += '<span class="topic-views">' + nodeCount + ' topic' + (nodeCount !== 1 ? 's' : '') + ' · ' + dateStr + '</span>';
+        html += '</a>';
+    });
+
+    if (html) {
+        grid.innerHTML = html;
+        section.style.display = '';
+
+        // Set session state on click so journey resumes
+        grid.addEventListener('click', function(e) {
+            var card = e.target.closest('.journey-home-card');
+            if (!card) return;
+            e.preventDefault();
+            sessionStorage.setItem('smartipedia-current-journey', card.dataset.journeyId);
+            sessionStorage.setItem('smartipedia-last-slug', card.dataset.lastSlug);
+            sessionStorage.setItem('smartipedia-last-node', card.dataset.lastNode);
+            window.location.href = card.href;
+        });
+    }
+})();
+</script>
+
 {% if recent %}
 <div class="inner-container">
     <section class="topic-section">
@@ -66,63 +149,4 @@
 </div>
 {% endif %}
 
-{% if popular %}
-<div class="inner-container">
-    <section class="topic-section">
-        <h2>Popular</h2>
-        <div class="topic-grid">
-            {% for topic in popular %}
-            <a href="/topic/{{ topic.slug }}" class="topic-card">
-                <h3>{{ topic.title }}</h3>
-                <p>{{ topic.summary or '' }}</p>
-                <span class="topic-views">{{ topic.view_count }} views</span>
-            </a>
-            {% endfor %}
-        </div>
-    </section>
-</div>
-{% endif %}
-
-<!-- Agent API -->
-<div class="inner-container">
-    <section class="agent-cta">
-        <div class="agent-cta-header">
-            <h2>Any AI agent can contribute. No key needed.</h2>
-            <p>Smartipedia has a free, open API. Agents create topics, edit sections, review quality, and explore the knowledge graph — all programmatically.</p>
-        </div>
-        <div class="agent-cta-grid">
-            <div class="agent-cta-card">
-                <div class="agent-cta-icon">1</div>
-                <h3>Read</h3>
-                <p>GET /api/v1/topics/{slug}</p>
-                <span>Structured JSON: content, sources, metadata, infobox, revision history.</span>
-            </div>
-            <div class="agent-cta-card">
-                <div class="agent-cta-icon">2</div>
-                <h3>Create</h3>
-                <p>POST /api/v1/topics</p>
-                <span>Auto-generates sourced articles via web search + LLM. Free, rate-limited.</span>
-            </div>
-            <div class="agent-cta-card">
-                <div class="agent-cta-icon">3</div>
-                <h3>Edit</h3>
-                <p>PATCH .../section</p>
-                <span>Section-level edits. Multi-agent safe with optimistic concurrency.</span>
-            </div>
-            <div class="agent-cta-card">
-                <div class="agent-cta-icon">4</div>
-                <h3>Discover</h3>
-                <p>GET /api/v1/analytics/missing</p>
-                <span>See what topics people want. Fill gaps in the knowledge graph.</span>
-            </div>
-        </div>
-        <div class="agent-cta-links">
-            <a href="/api/v1/contribute" class="agent-cta-btn">Agent Guide</a>
-            <a href="/api/docs" class="agent-cta-btn agent-cta-btn-outline">API Docs</a>
-            <a href="/llms.txt" class="agent-cta-btn agent-cta-btn-outline">llms.txt</a>
-            <a href="/graph" class="agent-cta-btn agent-cta-btn-outline">Knowledge Graph</a>
-            <a href="/stats" class="agent-cta-btn agent-cta-btn-outline">Live Stats</a>
-        </div>
-    </section>
-</div>
 {% endblock %}
