@@ -7,6 +7,7 @@ from slugify import slugify
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
+from ..services.moderation import ModerationError, check_title
 from ..services.topics import (
     get_analytics_overview,
     get_discover_facets,
@@ -182,6 +183,8 @@ async def generate_page(request: Request, db: AsyncSession = Depends(get_db)):
     slug = slugify(title, max_length=512)
     try:
         topic, created = await get_or_create_topic(db, title)
+    except ModerationError as e:
+        error_msg = str(e)
     except Exception as e:
         error_msg = str(e)
         if "402" in error_msg or "Payment" in error_msg:
@@ -216,6 +219,13 @@ async def generate_async(request: Request, db: AsyncSession = Depends(get_db)):
     title = form.get("title", "").strip()
     if not title:
         return RedirectResponse("/", status_code=303)
+    # Content moderation check
+    try:
+        check_title(title)
+    except ModerationError as e:
+        from urllib.parse import quote
+        return RedirectResponse(f"/?error={quote(str(e))}", status_code=303)
+
     slug = slugify(title, max_length=512)
 
     # Check if already exists

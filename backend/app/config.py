@@ -10,6 +10,14 @@ class Settings(BaseSettings):
     umami_website_id: str = ""  # set after creating the site in Umami dashboard
     daily_generation_limit: int = 50  # max new topics generated per day (0 = unlimited)
 
+    # Auth
+    session_secret: str = "change-me-in-production"  # signs session cookies
+    github_client_id: str = ""
+    github_client_secret: str = ""
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    base_url: str = "https://smartipedia.com"  # for OAuth redirect URIs
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 

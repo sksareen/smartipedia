@@ -84,6 +84,9 @@
     // ==================== JOURNEY TRACKER ====================
     initJourney();
 
+    // ==================== JOURNEY SYNC (if logged in) ====================
+    initJourneySync();
+
     // ==================== NOTEPAD DRAWER ====================
     initNotepad();
   });
@@ -685,6 +688,53 @@
 
     trail.innerHTML = html;
     bar.style.display = 'block';
+  }
+
+  // ==================== JOURNEY SYNC ====================
+  function initJourneySync() {
+    // Debounced sync: save journeys to server when logged in
+    var syncTimer = null;
+    function syncJourneys() {
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(function () {
+        var journeys = getJourneys();
+        fetch('/auth/journeys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ journeys: journeys }),
+        }).catch(function () {}); // silent fail
+      }, 2000);
+    }
+
+    // Check if logged in, then load server journeys on first visit
+    fetch('/auth/me').then(function (r) { return r.json(); }).then(function (data) {
+      if (!data.logged_in) return;
+      // Merge: load server journeys, merge with local, save back
+      fetch('/auth/journeys').then(function (r) { return r.json(); }).then(function (serverData) {
+        var serverJourneys = serverData.journeys || [];
+        var localJourneys = getJourneys();
+        if (serverJourneys.length > 0 && localJourneys.length === 0) {
+          // First login on this device — restore from server
+          saveJourneys(serverJourneys);
+        } else if (localJourneys.length > 0) {
+          // Merge: local wins for matching IDs, add server-only journeys
+          var localIds = {};
+          localJourneys.forEach(function (j) { localIds[j.id] = true; });
+          serverJourneys.forEach(function (j) {
+            if (!localIds[j.id]) localJourneys.push(j);
+          });
+          saveJourneys(localJourneys);
+          syncJourneys(); // push merged result to server
+        }
+      }).catch(function () {});
+
+      // Watch for journey changes and sync
+      var origSave = saveJourneys;
+      saveJourneys = function (journeys) {
+        origSave(journeys);
+        syncJourneys();
+      };
+    }).catch(function () {});
   }
 
   // ==================== NOTEPAD DRAWER ====================

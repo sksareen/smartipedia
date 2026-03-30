@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..models import GenerationLog, SearchLog, Topic, TopicLink, TopicRevision
 from .llm import generate_embedding, generate_topic
+from .moderation import ModerationError, check_title
 from .search import web_search
 
 
@@ -42,6 +43,9 @@ async def get_or_create_topic(
     Generation is free — uses the server's OpenRouter key.
     Subject to daily generation limit.
     """
+    # Content moderation check
+    check_title(title)
+
     slug = slugify(title, max_length=512)
     existing = await get_topic_by_slug(db, slug)
     if existing:

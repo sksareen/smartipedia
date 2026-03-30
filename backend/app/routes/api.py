@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..database import get_db
 from ..services.llm import generate_embedding
+from ..services.moderation import ModerationError
 from ..services.topics import (
     ConflictError,
     RateLimitError,
@@ -209,6 +210,8 @@ async def api_create_topic(
         topic, created = await get_or_create_topic(db, body.title)
     except RateLimitError as e:
         raise HTTPException(status_code=429, detail=str(e))
+    except ModerationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     related = await get_related_topics(db, topic)
     return _build_response(topic, related)
 

@@ -215,6 +215,39 @@ body {
 }
 .suggest-btn:hover { border-color: var(--border-hover); }
 
+/* Auth nav */
+.nav-user {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.nav-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+.nav-logout-btn {
+    font-size: 0.78rem !important;
+    color: var(--text-muted) !important;
+}
+.nav-login-group {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+.nav-login-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem !important;
+    padding: 0.35rem 0.7rem !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 6px !important;
+}
+.nav-login-btn:hover { border-color: var(--border-hover) !important; }
+.nav-login-btn svg { flex-shrink: 0; }
+
 /* ==================== CONTAINER ==================== */
 .container {
     position: relative;
@@ -1837,6 +1870,7 @@ body {
     .dark .nav-search-btn svg { stroke: #111827; }
     .nav-search-text, .nav-search-kbd { display: none; }
     .suggest-btn { display: none; }
+    .nav-login-text { display: none; }
     .edit-controls { flex-direction: column; }
     .source-tooltip, .keyword-tooltip, .explore-tooltip {
         max-width: calc(100vw - 24px);

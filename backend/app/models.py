@@ -9,6 +9,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -69,6 +70,24 @@ class TopicLink(Base):
 
     source = relationship("Topic", foreign_keys=[source_id], back_populates="outgoing_links")
     target = relationship("Topic", foreign_keys=[target_id], back_populates="incoming_links")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    provider = Column(String(32), nullable=False)  # "github" or "google"
+    provider_id = Column(String(256), nullable=False)  # provider's user ID
+    name = Column(String(256))
+    email = Column(String(256))
+    avatar_url = Column(String(512))
+    journeys = Column(JSONB, default=list)  # synced journey data
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_id", name="uq_user_provider"),
+    )
 
 
 class SearchLog(Base):

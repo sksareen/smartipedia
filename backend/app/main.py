@@ -1,14 +1,17 @@
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 
-from .database import engine
+from starlette.middleware.sessions import SessionMiddleware
+
+from .config import settings as cfg
+from .database import async_session, engine
 from .models import Base
-from .routes import api, pages
+from .routes import api, auth, pages
 
 app = FastAPI(
     title="Smartipedia",
@@ -26,6 +29,9 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
 )
 
+# Session middleware (needed for OAuth state parameter)
+app.add_middleware(SessionMiddleware, secret_key=cfg.session_secret)
+
 # Paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 TEMPLATES_DIR = BASE_DIR / "backend" / "app" / "templates"
@@ -39,8 +45,11 @@ from .config import settings as app_settings
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.globals["umami_script"] = bool(app_settings.umami_website_id)
 templates.env.globals["umami_website_id"] = app_settings.umami_website_id
+templates.env.globals["github_auth_enabled"] = bool(app_settings.github_client_id)
+templates.env.globals["google_auth_enabled"] = bool(app_settings.google_client_id)
 
 # Routes
+app.include_router(auth.router)
 app.include_router(pages.router)
 app.include_router(api.router)
 
@@ -218,6 +227,25 @@ async def ai_plugin_manifest():
         "contact_email": "savar@smartipedia.com",
         "legal_info_url": "https://github.com/sksareen/smartipedia/blob/main/LICENSE",
     })
+
+
+@app.middleware("http")
+async def inject_user(request: Request, call_next):
+    """Make current user available to templates via request.state.user."""
+    from .routes.auth import get_user_id_from_cookie
+    uid = get_user_id_from_cookie(request)
+    request.state.user = None
+    if uid:
+        import uuid as _uuid
+        from sqlalchemy import select
+        from .models import User
+        try:
+            async with async_session() as db:
+                result = await db.execute(select(User).where(User.id == _uuid.UUID(uid)))
+                request.state.user = result.scalar_one_or_none()
+        except Exception:
+            pass
+    return await call_next(request)
 
 
 @app.on_event("startup")
