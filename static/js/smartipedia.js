@@ -1242,10 +1242,40 @@
       editor.focus();
     }
 
-    function appendMessage(role, text) {
+    function renderMarkdown(text) {
+      // Lightweight markdown: bold, italic, bullets, line breaks
+      var html = text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`(.+?)`/g, '<code>$1</code>');
+      // Convert lines starting with - into list items
+      var lines = html.split('\n');
+      var out = [], inList = false;
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var bullet = line.match(/^\s*[-*]\s+(.*)/);
+        if (bullet) {
+          if (!inList) { out.push('<ul>'); inList = true; }
+          out.push('<li>' + bullet[1] + '</li>');
+        } else {
+          if (inList) { out.push('</ul>'); inList = false; }
+          if (line.trim() === '') { out.push('<br>'); }
+          else { out.push('<p>' + line + '</p>'); }
+        }
+      }
+      if (inList) out.push('</ul>');
+      return out.join('');
+    }
+
+    function appendMessage(role, text, useMarkdown) {
       var div = document.createElement('div');
       div.className = 'ai-chat-msg ai-chat-' + role;
-      div.textContent = text;
+      if (useMarkdown) {
+        div.innerHTML = renderMarkdown(text);
+      } else {
+        div.textContent = text;
+      }
       chatMessages.appendChild(div);
       chatMessages.scrollTop = chatMessages.scrollHeight;
       return div;
@@ -1275,7 +1305,7 @@
         });
         var data = await resp.json();
         loadingDiv.classList.remove('ai-chat-loading');
-        loadingDiv.textContent = data.reply || 'No response.';
+        loadingDiv.innerHTML = renderMarkdown(data.reply || 'No response.');
         chatHistory.push({ role: 'user', content: msg });
         chatHistory.push({ role: 'assistant', content: data.reply || '' });
       } catch (err) {

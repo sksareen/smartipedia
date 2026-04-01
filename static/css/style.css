@@ -2449,6 +2449,11 @@ body { padding-bottom: 40px; }
     background: none;
     padding: 0.25rem;
 }
+.ai-chat-msg p { margin: 0.15em 0; }
+.ai-chat-msg ul { margin: 0.3em 0; padding-left: 1.3em; }
+.ai-chat-msg li { margin: 0.15em 0; }
+.ai-chat-msg code { background: rgba(0,0,0,0.06); padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.82em; }
+.ai-chat-msg strong { font-weight: 600; }
 .ai-chat-msg.ai-chat-loading::after {
     content: '';
     display: inline-block;
