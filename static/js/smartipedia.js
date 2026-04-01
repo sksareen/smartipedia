@@ -1366,9 +1366,7 @@
     // Single global Tab handler: toggle between notes and chat
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Tab') return;
-      // Only act when drawer is open
       if (!drawer || !drawer.classList.contains('open')) return;
-      // Don't hijack Tab if user is in search or other inputs outside the drawer
       var active = document.activeElement;
       var inDrawer = drawer.contains(active) || active === document.body;
       if (!inDrawer) return;
@@ -1380,6 +1378,59 @@
         showChat();
       }
     });
+
+    // ---- Swipe left/right on drawer to toggle notes <-> chat (mobile) ----
+    var touchStartX = 0, touchStartY = 0;
+    var panel = document.getElementById('notepad-panel');
+    var swipeTarget = panel || drawer;
+
+    swipeTarget.addEventListener('touchstart', function (e) {
+      var t = e.touches[0];
+      touchStartX = t.clientX;
+      touchStartY = t.clientY;
+    }, { passive: true });
+
+    swipeTarget.addEventListener('touchend', function (e) {
+      var t = e.changedTouches[0];
+      var dx = t.clientX - touchStartX;
+      var dy = t.clientY - touchStartY;
+      // Only trigger on horizontal swipes (dx > 60px, more horizontal than vertical)
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
+      if (dx < 0) {
+        // Swipe left → open chat
+        if (!chatActive) showChat();
+      } else {
+        // Swipe right → back to notes
+        if (chatActive) hideChat();
+      }
+    }, { passive: true });
+
+    // ---- Mobile floating action button ----
+    var fab = document.getElementById('mobile-drawer-fab');
+    if (fab) {
+      function updateFab() {
+        if (!drawer) return;
+        if (drawer.classList.contains('open')) {
+          fab.classList.add('hidden');
+        } else {
+          fab.classList.remove('hidden');
+        }
+      }
+
+      fab.addEventListener('click', function () {
+        if (drawer) {
+          drawer.classList.add('open');
+          sessionStorage.setItem('smartipedia-drawer-open', '1');
+          editor.focus();
+          updateFab();
+        }
+      });
+
+      // Watch for drawer close to show FAB again
+      var observer = new MutationObserver(updateFab);
+      if (drawer) observer.observe(drawer, { attributes: true, attributeFilter: ['class'] });
+      updateFab();
+    }
   });
 })();
 
