@@ -1206,7 +1206,26 @@
 
     if (!chatPanel || !chatInput || !editor) return;
 
-    var chatHistory = []; // [{role, content}]
+    var CHAT_KEY = 'smartipedia-chat-';
+    var CHAT_ACTIVE_KEY = 'smartipedia-chat-active';
+
+    function getChatKey() {
+      var jid = sessionStorage.getItem('smartipedia-journey-id');
+      return jid ? CHAT_KEY + jid : CHAT_KEY + 'global';
+    }
+
+    function loadChat() {
+      try {
+        var saved = localStorage.getItem(getChatKey());
+        return saved ? JSON.parse(saved) : [];
+      } catch (e) { return []; }
+    }
+
+    function saveChat() {
+      localStorage.setItem(getChatKey(), JSON.stringify(chatHistory));
+    }
+
+    var chatHistory = loadChat();
     var chatActive = false;
 
     function getPageContext() {
@@ -1223,23 +1242,40 @@
       return trail.innerText || trail.textContent || '';
     }
 
+    // Restore previous messages into the DOM
+    function restoreMessages() {
+      for (var i = 0; i < chatHistory.length; i++) {
+        var m = chatHistory[i];
+        appendMessage(m.role, m.content, m.role === 'assistant');
+      }
+    }
+    restoreMessages();
+
     function showChat() {
       chatActive = true;
       chatPanel.style.display = 'flex';
       if (notepadBody) notepadBody.style.display = 'none';
+      sessionStorage.setItem(CHAT_ACTIVE_KEY, '1');
       // Make sure drawer is open
       if (drawer && !drawer.classList.contains('open')) {
         drawer.classList.add('open');
         sessionStorage.setItem('smartipedia-drawer-open', '1');
       }
       chatInput.focus();
+      chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
     function hideChat() {
       chatActive = false;
       chatPanel.style.display = 'none';
       if (notepadBody) notepadBody.style.display = '';
+      sessionStorage.setItem(CHAT_ACTIVE_KEY, '0');
       editor.focus();
+    }
+
+    // Restore chat-open state from previous page
+    if (sessionStorage.getItem(CHAT_ACTIVE_KEY) === '1') {
+      showChat();
     }
 
     function renderMarkdown(text) {
@@ -1308,6 +1344,7 @@
         loadingDiv.innerHTML = renderMarkdown(data.reply || 'No response.');
         chatHistory.push({ role: 'user', content: msg });
         chatHistory.push({ role: 'assistant', content: data.reply || '' });
+        saveChat();
       } catch (err) {
         loadingDiv.classList.remove('ai-chat-loading');
         loadingDiv.textContent = 'Failed to reach AI. Try again.';
