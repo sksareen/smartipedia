@@ -1292,38 +1292,25 @@
         e.preventDefault();
         sendMessage();
       }
-      // Tab to go back to notes
-      if (e.key === 'Tab') {
-        e.preventDefault();
-        hideChat();
-      }
     });
 
     if (chatClose) chatClose.addEventListener('click', hideChat);
 
-    // Tab key in notepad editor → open chat
-    editor.addEventListener('keydown', function (e) {
-      if (e.key === 'Tab') {
-        e.preventDefault();
-        showChat();
-      }
-    });
-
-    // Global Tab toggle: open chat from drawer, close chat from anywhere in chat panel
+    // Single global Tab handler: toggle between notes and chat
     document.addEventListener('keydown', function (e) {
-      if (e.key !== 'Tab' || !drawer || !drawer.classList.contains('open')) return;
+      if (e.key !== 'Tab') return;
+      // Only act when drawer is open
+      if (!drawer || !drawer.classList.contains('open')) return;
+      // Don't hijack Tab if user is in search or other inputs outside the drawer
+      var active = document.activeElement;
+      var inDrawer = drawer.contains(active) || active === document.body;
+      if (!inDrawer) return;
+
+      e.preventDefault();
       if (chatActive) {
-        // Tab anywhere while chat is open → back to notes
-        if (chatPanel.contains(document.activeElement) || document.activeElement === document.body) {
-          e.preventDefault();
-          hideChat();
-        }
+        hideChat();
       } else {
-        // Tab in drawer → open chat
-        if (drawer.contains(document.activeElement) || document.activeElement === editor) {
-          e.preventDefault();
-          showChat();
-        }
+        showChat();
       }
     });
   });
