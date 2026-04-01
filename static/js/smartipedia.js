@@ -1309,10 +1309,17 @@
       }
     });
 
-    // Also handle Tab on the collapsed bar to open chat directly
+    // Global Tab toggle: open chat from drawer, close chat from anywhere in chat panel
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Tab' && drawer && drawer.classList.contains('open') && !chatActive) {
-        // Only if focus is inside the drawer
+      if (e.key !== 'Tab' || !drawer || !drawer.classList.contains('open')) return;
+      if (chatActive) {
+        // Tab anywhere while chat is open → back to notes
+        if (chatPanel.contains(document.activeElement) || document.activeElement === document.body) {
+          e.preventDefault();
+          hideChat();
+        }
+      } else {
+        // Tab in drawer → open chat
         if (drawer.contains(document.activeElement) || document.activeElement === editor) {
           e.preventDefault();
           showChat();
