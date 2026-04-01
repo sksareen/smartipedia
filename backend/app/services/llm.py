@@ -235,3 +235,60 @@ async def generate_embedding(
     except Exception as e:
         print(f"Embedding generation failed: {e}")
         return None
+
+
+CHAT_SYSTEM_PROMPT = (
+    "You are a helpful AI assistant embedded in Smartipedia, an AI-powered encyclopedia. "
+    "You have context about the page the user is currently viewing and their exploration journey. "
+    "Answer questions about the content, explain concepts, suggest related topics to explore, "
+    "and help the user learn. Be concise and conversational."
+)
+
+
+async def chat_with_context(
+    message: str,
+    history: list[dict],
+    page_context: str,
+    journey_context: str,
+) -> str:
+    """Chat with the user using page and journey context."""
+    api_key = settings.openrouter_api_key
+    if not api_key:
+        return "Chat is unavailable — no API key configured."
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://smartipedia.com",
+        "X-Title": "Smartipedia",
+    }
+
+    messages = [
+        {"role": "system", "content": CHAT_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": (
+                f"Current page context:\n{page_context}\n\n"
+                f"My exploration journey:\n{journey_context}"
+            ),
+        },
+        *history,
+        {"role": "user", "content": message},
+    ]
+
+    payload = {
+        "model": "anthropic/claude-sonnet-4",
+        "messages": messages,
+        "max_tokens": 1024,
+        "temperature": 0.5,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(OPENROUTER_URL, headers=headers, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+        return data["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        print(f"Chat generation failed: {e}")
+        return "Sorry, I wasn't able to process that. Please try again."

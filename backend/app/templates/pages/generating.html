@@ -11,7 +11,18 @@
             </div>
         </div>
         <h1>{{ title }}</h1>
-        <p class="generating-subtitle">Researching and writing this article...</p>
+
+        <!-- Word Scramble Game -->
+        <div class="scramble-game" id="scramble-game">
+            <p class="scramble-label">Unscramble while you wait</p>
+            <div class="scramble-word" id="scramble-word"></div>
+            <input type="text" class="scramble-input" id="scramble-input" placeholder="Type your guess..." autocomplete="off" spellcheck="false" />
+            <div class="scramble-feedback" id="scramble-feedback"></div>
+            <div class="scramble-score">
+                <span id="scramble-streak"></span>
+                <button class="scramble-skip" id="scramble-skip">Skip &rarr;</button>
+            </div>
+        </div>
 
         <div class="generating-progress-bar">
             <div class="generating-progress-fill" id="progress-fill"></div>
@@ -20,8 +31,164 @@
     </div>
 </div>
 
+<style>
+.scramble-game {
+    margin: 1.2rem 0;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    background: var(--bg-secondary, #f9fafb);
+    text-align: center;
+}
+.scramble-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-light);
+    margin: 0 0 0.6rem;
+}
+.scramble-word {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--text);
+    margin-bottom: 0.75rem;
+    font-family: var(--font-mono, monospace);
+    user-select: none;
+}
+.scramble-input {
+    width: 100%;
+    max-width: 280px;
+    padding: 0.5rem 0.75rem;
+    border: 1.5px solid var(--border);
+    border-radius: 0.4rem;
+    font-size: 1rem;
+    text-align: center;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    font-family: var(--font-mono, monospace);
+    letter-spacing: 0.05em;
+}
+.scramble-input:focus {
+    border-color: var(--accent, #4f46e5);
+}
+.scramble-input.correct {
+    border-color: #22c55e;
+    background: #f0fdf4;
+}
+.scramble-input.wrong {
+    border-color: #ef4444;
+}
+.scramble-feedback {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    min-height: 1.4em;
+}
+.scramble-feedback.correct { color: #22c55e; font-weight: 600; }
+.scramble-feedback.wrong { color: #ef4444; }
+.scramble-score {
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: var(--text-light);
+}
+.scramble-skip {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    font-size: 0.8rem;
+    text-decoration: underline;
+}
+.scramble-skip:hover { color: var(--text); }
+[data-theme="dark"] .scramble-game { background: var(--bg-secondary, #1e1e2e); }
+[data-theme="dark"] .scramble-input.correct { background: #052e16; }
+</style>
+
 <script>
 (function() {
+    // ---- Word Scramble Game ----
+    var TOPIC_WORDS = "{{ title }}".split(/\s+/).filter(function(w) { return w.length >= 3; });
+    // Supplement with general knowledge words if title is short
+    var EXTRA_WORDS = [
+        'algorithm','quantum','neural','genome','galaxy','paradox','entropy',
+        'photon','molecule','theorem','catalyst','isotope','voltage','helix',
+        'nucleus','spectrum','gravity','plasma','matrix','fractal','synapse',
+        'kinetic','cipher','vector','orbital','tensor','quasar','prism',
+        'cortex','axiom','binary','fusion','lambda','neuron','optics'
+    ];
+    var wordPool = TOPIC_WORDS.concat(EXTRA_WORDS);
+
+    var scrambleWord = document.getElementById('scramble-word');
+    var scrambleInput = document.getElementById('scramble-input');
+    var scrambleFeedback = document.getElementById('scramble-feedback');
+    var scrambleStreak = document.getElementById('scramble-streak');
+    var scrambleSkip = document.getElementById('scramble-skip');
+
+    var currentAnswer = '';
+    var streak = 0;
+    var usedWords = [];
+
+    function shuffle(str) {
+        var arr = str.split('');
+        for (var i = arr.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+        }
+        var result = arr.join('');
+        // Ensure it's actually scrambled
+        if (result.toLowerCase() === str.toLowerCase() && str.length > 2) return shuffle(str);
+        return result;
+    }
+
+    function nextWord() {
+        // Pick a word we haven't used recently
+        var available = wordPool.filter(function(w) { return usedWords.indexOf(w.toLowerCase()) === -1; });
+        if (available.length === 0) { usedWords = []; available = wordPool; }
+        var word = available[Math.floor(Math.random() * available.length)];
+        currentAnswer = word.toLowerCase().replace(/[^a-z]/g, '');
+        usedWords.push(currentAnswer);
+        scrambleWord.textContent = shuffle(currentAnswer).toUpperCase();
+        scrambleInput.value = '';
+        scrambleInput.className = 'scramble-input';
+        scrambleFeedback.textContent = '';
+        scrambleFeedback.className = 'scramble-feedback';
+        scrambleInput.focus();
+    }
+
+    function updateStreak() {
+        scrambleStreak.textContent = streak > 0 ? streak + ' in a row' : '';
+    }
+
+    scrambleInput.addEventListener('input', function () {
+        var guess = scrambleInput.value.trim().toLowerCase().replace(/[^a-z]/g, '');
+        if (guess === currentAnswer) {
+            streak++;
+            updateStreak();
+            scrambleInput.className = 'scramble-input correct';
+            scrambleFeedback.textContent = 'Correct!';
+            scrambleFeedback.className = 'scramble-feedback correct';
+            setTimeout(nextWord, 700);
+        }
+    });
+
+    scrambleSkip.addEventListener('click', function () {
+        scrambleFeedback.textContent = 'It was: ' + currentAnswer;
+        scrambleFeedback.className = 'scramble-feedback wrong';
+        streak = 0;
+        updateStreak();
+        setTimeout(nextWord, 1200);
+    });
+
+    // Start game
+    nextWord();
+    updateStreak();
+
+    // ---- Progress stages ----
     var stages = [
         { pct: 15, text: "Searching the web for sources...", delay: 0 },
         { pct: 35, text: "Reading and analyzing sources...", delay: 2500 },

@@ -1192,6 +1192,137 @@
 })();
 
 
+// ==================== AI CHAT (Tab to toggle) ====================
+(function () {
+  document.addEventListener('DOMContentLoaded', function () {
+    var chatPanel = document.getElementById('ai-chat-panel');
+    var chatInput = document.getElementById('ai-chat-input');
+    var chatSend = document.getElementById('ai-chat-send');
+    var chatMessages = document.getElementById('ai-chat-messages');
+    var chatClose = document.getElementById('ai-chat-close');
+    var editor = document.getElementById('notepad-editor');
+    var notepadBody = document.querySelector('.notepad-body');
+    var drawer = document.getElementById('notepad-drawer');
+
+    if (!chatPanel || !chatInput || !editor) return;
+
+    var chatHistory = []; // [{role, content}]
+    var chatActive = false;
+
+    function getPageContext() {
+      // Grab visible article content
+      var article = document.querySelector('.topic-content') || document.querySelector('.content') || document.querySelector('main');
+      if (!article) return document.title;
+      var text = article.innerText || article.textContent || '';
+      return text.substring(0, 6000);
+    }
+
+    function getJourneyContext() {
+      var trail = document.getElementById('notepad-journey-trail');
+      if (!trail) return '';
+      return trail.innerText || trail.textContent || '';
+    }
+
+    function showChat() {
+      chatActive = true;
+      chatPanel.style.display = 'flex';
+      if (notepadBody) notepadBody.style.display = 'none';
+      // Make sure drawer is open
+      if (drawer && !drawer.classList.contains('open')) {
+        drawer.classList.add('open');
+        sessionStorage.setItem('smartipedia-drawer-open', '1');
+      }
+      chatInput.focus();
+    }
+
+    function hideChat() {
+      chatActive = false;
+      chatPanel.style.display = 'none';
+      if (notepadBody) notepadBody.style.display = '';
+      editor.focus();
+    }
+
+    function appendMessage(role, text) {
+      var div = document.createElement('div');
+      div.className = 'ai-chat-msg ai-chat-' + role;
+      div.textContent = text;
+      chatMessages.appendChild(div);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      return div;
+    }
+
+    async function sendMessage() {
+      var msg = chatInput.value.trim();
+      if (!msg) return;
+
+      chatInput.value = '';
+      appendMessage('user', msg);
+      chatSend.disabled = true;
+
+      var loadingDiv = appendMessage('assistant', 'Thinking');
+      loadingDiv.classList.add('ai-chat-loading');
+
+      try {
+        var resp = await fetch('/api/v1/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: msg,
+            history: chatHistory.slice(-20),
+            page_context: getPageContext(),
+            journey_context: getJourneyContext(),
+          }),
+        });
+        var data = await resp.json();
+        loadingDiv.classList.remove('ai-chat-loading');
+        loadingDiv.textContent = data.reply || 'No response.';
+        chatHistory.push({ role: 'user', content: msg });
+        chatHistory.push({ role: 'assistant', content: data.reply || '' });
+      } catch (err) {
+        loadingDiv.classList.remove('ai-chat-loading');
+        loadingDiv.textContent = 'Failed to reach AI. Try again.';
+      }
+      chatSend.disabled = false;
+      chatInput.focus();
+    }
+
+    chatSend.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+      // Tab to go back to notes
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        hideChat();
+      }
+    });
+
+    if (chatClose) chatClose.addEventListener('click', hideChat);
+
+    // Tab key in notepad editor → open chat
+    editor.addEventListener('keydown', function (e) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        showChat();
+      }
+    });
+
+    // Also handle Tab on the collapsed bar to open chat directly
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Tab' && drawer && drawer.classList.contains('open') && !chatActive) {
+        // Only if focus is inside the drawer
+        if (drawer.contains(document.activeElement) || document.activeElement === editor) {
+          e.preventDefault();
+          showChat();
+        }
+      }
+    });
+  });
+})();
+
+
   // ==================== GENERATE LOADING STATE ====================
   document.addEventListener('DOMContentLoaded', function () {
     var overlay = document.getElementById('generating-overlay');

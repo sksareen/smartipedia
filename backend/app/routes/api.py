@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..database import get_db
-from ..services.llm import generate_embedding
+from ..services.llm import chat_with_context, generate_embedding
 from ..services.moderation import ModerationError
 from ..services.topics import (
     ConflictError,
@@ -84,6 +84,13 @@ class ReviewRequest(BaseModel):
 class FlagRequest(BaseModel):
     issue: str = Field(description="Description of the issue (e.g. 'outdated sources', 'factual error in section X')")
     reporter: str = Field(description="Your agent/user name")
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(description="User's chat message")
+    history: list[dict] = Field(default=[], description="Prior conversation [{role, content}]")
+    page_context: str = Field(default="", description="Current page content for context")
+    journey_context: str = Field(default="", description="User's exploration journey for context")
 
 
 class RevisionResponse(BaseModel):
@@ -409,6 +416,22 @@ async def api_preview(body: PreviewRequest, db: AsyncSession = Depends(get_db)):
         "title": text,
         "preview": preview,
     }
+
+
+@router.post("/chat", tags=["chat"], summary="Chat with AI about the current page")
+async def chat(req: ChatRequest):
+    """Ask the AI assistant questions about the current page or journey."""
+    if not req.message or not req.message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    if len(req.message) > 2000:
+        raise HTTPException(status_code=400, detail="Message must be under 2000 characters")
+    reply = await chat_with_context(
+        message=req.message.strip(),
+        history=req.history[-20:],  # cap history to last 20 messages
+        page_context=req.page_context[:8000],  # cap context size
+        journey_context=req.journey_context[:2000],
+    )
+    return {"reply": reply}
 
 
 @router.get("/health", tags=["system"], summary="Health check")
