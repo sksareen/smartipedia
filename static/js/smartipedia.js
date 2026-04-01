@@ -1381,21 +1381,22 @@
 
     // ---- Swipe left/right on drawer to toggle notes <-> chat (mobile) ----
     var touchStartX = 0, touchStartY = 0;
-    var panel = document.getElementById('notepad-panel');
-    var swipeTarget = panel || drawer;
 
-    swipeTarget.addEventListener('touchstart', function (e) {
+    // Listen on entire drawer so swipe works in notes, chat, and collapsed bar
+    drawer.addEventListener('touchstart', function (e) {
       var t = e.touches[0];
       touchStartX = t.clientX;
       touchStartY = t.clientY;
     }, { passive: true });
 
-    swipeTarget.addEventListener('touchend', function (e) {
+    drawer.addEventListener('touchend', function (e) {
+      // Only when panel is open
+      if (!drawer.classList.contains('open')) return;
       var t = e.changedTouches[0];
       var dx = t.clientX - touchStartX;
       var dy = t.clientY - touchStartY;
-      // Only trigger on horizontal swipes (dx > 60px, more horizontal than vertical)
-      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
+      // Only trigger on horizontal swipes (dx > 50px, more horizontal than vertical)
+      if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
       if (dx < 0) {
         // Swipe left → open chat
         if (!chatActive) showChat();
