@@ -310,12 +310,17 @@ async def api_discover(
     db: AsyncSession = Depends(get_db),
 ):
     # Try semantic search first
+    results = []
     embedding = await generate_embedding(q)
     if embedding:
         results = await semantic_search_topics(db, embedding, category, difficulty, quality, min_views, limit)
-    else:
-        # Fall back to text search
+
+    # Fall back to text search when the embedding call failed, or when it
+    # succeeded but matched nothing — an unembedded corpus must not read as
+    # an empty encyclopedia, or callers generate duplicates of topics we have.
+    if not results and not (category or difficulty or quality or min_views):
         results = await search_topics(db, q, limit)
+
     return SearchResponse(results=[_build_response(t) for t in results], query=q)
 
 

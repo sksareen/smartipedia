@@ -4,10 +4,11 @@ from datetime import datetime, timezone
 
 import markdown
 from slugify import slugify
-from sqlalchemy import select, func as sqlfunc
+from sqlalchemy import select, update, func as sqlfunc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
+from ..database import async_session
 from ..models import GenerationLog, SearchLog, Topic, TopicLink, TopicRevision
 from .llm import generate_embedding, generate_topic
 from .moderation import ModerationError, check_title
@@ -116,15 +117,26 @@ async def get_or_create_topic(
     await db.commit()
     await db.refresh(topic)
 
-    # Generate embedding in background — don't block the response
+    # Generate embedding in background — don't block the response.
+    # The task outlives this request, so it must not touch `db`: the
+    # request-scoped session is closed the moment we return, and the commit
+    # would fail silently. Open our own session, like _generate_in_background.
+    topic_id = topic.id
+    embed_text = f"{title}: {generated['summary']}"
+
     async def _set_embedding():
         try:
-            embedding = await generate_embedding(f"{title}: {generated['summary']}")
-            if embedding:
-                topic.embedding = embedding
-                await db.commit()
-        except Exception:
-            pass  # ok if it fails
+            embedding = await generate_embedding(embed_text)
+            if not embedding:
+                print(f"Embedding skipped for {slug}: generator returned nothing")
+                return
+            async with async_session() as session:
+                await session.execute(
+                    update(Topic).where(Topic.id == topic_id).values(embedding=embedding)
+                )
+                await session.commit()
+        except Exception as e:
+            print(f"Embedding persist failed for {slug}: {e}")
 
     asyncio.create_task(_set_embedding())
 
