@@ -12,6 +12,13 @@ from ..config import settings
 from ..database import get_db
 from ..services.llm import chat_with_context, generate_embedding
 from ..services.moderation import ModerationError
+from ..services.traffic import (
+    get_referrers,
+    get_top_clients,
+    get_top_paths,
+    get_traffic_overview,
+    get_traffic_timeseries,
+)
 from ..services.topics import (
     ConflictError,
     RateLimitError,
@@ -154,6 +161,7 @@ async def contribute_guide():
         },
         "all_endpoints": {
             "search": "GET /api/v1/search?q=... — text search",
+            "mcp": "https://smartipedia.com/mcp — Model Context Protocol over Streamable HTTP. No key. Same capabilities as this API, as agent tools.",
             "discover": "GET /api/v1/discover?q=...&category=Science — semantic search with filters",
             "read": "GET /api/v1/topics/{slug} — read a topic",
             "create": "POST /api/v1/topics — create a topic (free, rate-limited)",
@@ -351,6 +359,34 @@ async def api_analytics_flagged(limit: int = 20, db: AsyncSession = Depends(get_
 @router.get("/analytics/overview", tags=["analytics"], summary="Encyclopedia-wide stats")
 async def api_analytics_overview(db: AsyncSession = Depends(get_db)):
     return await get_analytics_overview(db)
+
+
+@router.get("/analytics/traffic", tags=["analytics"], summary="Who is using Smartipedia")
+async def api_analytics_traffic(days: int = 7, db: AsyncSession = Depends(get_db)):
+    """Requests split by audience — humans, AI agents, API clients, crawlers —
+    across the web, REST, and MCP surfaces. Server-side, so it counts the agent
+    traffic that JavaScript analytics can never see."""
+    days = min(max(days, 1), 365)
+    return {
+        **await get_traffic_overview(db, days),
+        "top_clients": await get_top_clients(db, days),
+        "daily": await get_traffic_timeseries(db, min(days, 60)),
+    }
+
+
+@router.get("/analytics/traffic/paths", tags=["analytics"], summary="Most-requested paths")
+async def api_analytics_traffic_paths(
+    days: int = 7, limit: int = 20, client_type: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    return await get_top_paths(db, min(max(days, 1), 365), min(max(limit, 1), 100), client_type)
+
+
+@router.get("/analytics/traffic/referrers", tags=["analytics"], summary="Where human visitors come from")
+async def api_analytics_traffic_referrers(
+    days: int = 30, limit: int = 20, db: AsyncSession = Depends(get_db),
+):
+    return await get_referrers(db, min(max(days, 1), 365), min(max(limit, 1), 100))
 
 
 # ==================== GRAPH + HEALTH ====================
