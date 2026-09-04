@@ -35,7 +35,8 @@ class Topic(Base):
     model_used = Column(String(128))  # which LLM generated this
     embedding = Column(Vector(1536))  # for semantic similarity / graph links
     revision_number = Column(Integer, default=1, nullable=False)  # for optimistic concurrency
-    view_count = Column(Integer, default=0)
+    view_count = Column(Integer, default=0)  # every render, crawlers included
+    human_view_count = Column(Integer, default=0)  # browser traffic only — see services/traffic.py
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -109,3 +110,26 @@ class GenerationLog(Base):
     topic_slug = Column(String(512), nullable=False)
     model_used = Column(String(128))
     created_at = Column(DateTime, server_default=func.now())
+
+
+class RequestLog(Base):
+    """Every non-static request, classified by who sent it.
+
+    Client-side analytics only sees humans running JavaScript. Most of
+    Smartipedia's traffic is agents and crawlers, which never execute JS, so
+    attribution has to happen here.
+    """
+    __tablename__ = "request_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    path = Column(String(512), nullable=False)
+    method = Column(String(8), default="GET")
+    status_code = Column(Integer)
+    surface = Column(String(8), index=True)  # web, api, or mcp
+    client_type = Column(String(16), index=True)  # human, ai_agent, api_client, crawler, unknown
+    ua_family = Column(String(64), index=True)  # Googlebot, GPTBot, Chrome, ...
+    user_agent = Column(String(512))
+    ip_hash = Column(String(32), index=True)  # salted, non-reversible
+    referrer = Column(String(512))
+    duration_ms = Column(Integer)
+    created_at = Column(DateTime, server_default=func.now(), index=True)

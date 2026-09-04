@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..services.moderation import ModerationError, check_title
+from ..services.traffic import get_referrers, get_top_clients, get_traffic_overview
 from ..services.topics import (
     get_analytics_overview,
     get_discover_facets,
@@ -41,7 +42,7 @@ async def home(request: Request, db: AsyncSession = Depends(get_db)):
 async def search_page(request: Request, q: str = "", db: AsyncSession = Depends(get_db)):
     results = []
     if q:
-        results = await search_topics(db, q)
+        results = await search_topics(db, q, searcher=getattr(request.state, "client_type", "web"))
     is_htmx = request.headers.get("HX-Request") == "true"
     if is_htmx:
         return request.app.state.templates.TemplateResponse(
@@ -64,6 +65,9 @@ async def view_topic(request: Request, slug: str, db: AsyncSession = Depends(get
             status_code=404,
         )
     topic.view_count += 1
+    # Crawlers dominate raw hits, so keep a separate counter for real readers.
+    if getattr(request.state, "client_type", None) == "human":
+        topic.human_view_count = (topic.human_view_count or 0) + 1
     await db.commit()
     await db.refresh(topic)
     related = await get_related_topics(db, topic)
@@ -119,9 +123,12 @@ async def stats_page(request: Request, db: AsyncSession = Depends(get_db)):
     contributors = await get_top_contributors(db)
     recent_edits = await get_recent_edits(db, limit=15)
     missing = await get_missing_topics(db, limit=10)
-    popular = await get_popular_topics(db, limit=10)
+    popular = await get_popular_topics(db, limit=10, human_only=True)
     facets = await get_discover_facets(db)
     quality = facets.get("quality_statuses", {})
+    traffic = await get_traffic_overview(db, days=7)
+    top_clients = await get_top_clients(db, days=7, limit=12)
+    referrers = await get_referrers(db, days=30, limit=8)
     return request.app.state.templates.TemplateResponse(
         "pages/stats.html",
         {
@@ -132,6 +139,9 @@ async def stats_page(request: Request, db: AsyncSession = Depends(get_db)):
             "missing": missing,
             "popular": popular,
             "quality": quality,
+            "traffic": traffic,
+            "top_clients": top_clients,
+            "referrers": referrers,
         },
     )
 

@@ -11,6 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import settings as cfg
 from .database import async_session, engine
+from .middleware import TrafficLoggerMiddleware, traffic_flusher
 from .models import Base
 from .mcp_server import build_http_app
 from .routes import api, auth, pages
@@ -27,9 +28,13 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
+        # create_all adds new tables but never new columns on existing ones.
+        await conn.execute(text(
+            "ALTER TABLE topics ADD COLUMN IF NOT EXISTS human_view_count INTEGER DEFAULT 0"
+        ))
     # Starlette does not run a mounted sub-app's lifespan, so the MCP session
     # manager has to be started here or every /mcp request fails.
-    async with mcp_app.router.lifespan_context(mcp_app):
+    async with mcp_app.router.lifespan_context(mcp_app), traffic_flusher():
         yield
 
 
@@ -52,6 +57,9 @@ app = FastAPI(
 
 # Session middleware (needed for OAuth state parameter)
 app.add_middleware(SessionMiddleware, secret_key=cfg.session_secret)
+
+# Added last so it wraps everything else and sees the final status code.
+app.add_middleware(TrafficLoggerMiddleware)
 
 # Paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent

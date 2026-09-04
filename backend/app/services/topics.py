@@ -374,6 +374,7 @@ async def get_analytics_overview(db: AsyncSession) -> dict:
         select(sqlfunc.count(SearchLog.id)).where(SearchLog.result_count == 0)
     )).scalar_one()
     total_views = (await db.execute(select(sqlfunc.sum(Topic.view_count)))).scalar_one() or 0
+    human_views = (await db.execute(select(sqlfunc.sum(Topic.human_view_count)))).scalar_one() or 0
     total_edits = (await db.execute(select(sqlfunc.count(TopicRevision.id)))).scalar_one()
     total_editors = (await db.execute(
         select(sqlfunc.count(sqlfunc.distinct(TopicRevision.editor)))
@@ -385,6 +386,7 @@ async def get_analytics_overview(db: AsyncSession) -> dict:
         "search_misses": miss_count,
         "miss_rate": round(miss_count / max(search_count, 1) * 100, 1),
         "total_views": total_views,
+        "human_views": human_views,
         "total_edits": total_edits,
         "total_editors": total_editors,
     }
@@ -488,9 +490,13 @@ async def get_recent_topics(db: AsyncSession, limit: int = 20) -> list[Topic]:
     return list(result.scalars().all())
 
 
-async def get_popular_topics(db: AsyncSession, limit: int = 20) -> list[Topic]:
+async def get_popular_topics(db: AsyncSession, limit: int = 20, human_only: bool = False) -> list[Topic]:
+    """Most-viewed topics. human_only ranks by browser traffic, which is the
+    only ordering that reflects actual reader interest — raw view_count is
+    dominated by crawlers sweeping the corpus in slug order."""
+    column = Topic.human_view_count if human_only else Topic.view_count
     result = await db.execute(
-        select(Topic).order_by(Topic.view_count.desc()).limit(limit)
+        select(Topic).order_by(column.desc()).limit(limit)
     )
     return list(result.scalars().all())
 
