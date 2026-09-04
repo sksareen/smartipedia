@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -11,9 +12,29 @@ from starlette.middleware.sessions import SessionMiddleware
 from .config import settings as cfg
 from .database import async_session, engine
 from .models import Base
+from .mcp_server import build_http_app
 from .routes import api, auth, pages
 
+# Streamable HTTP transport for the remote MCP server. Stateless so it works
+# behind multiple uvicorn workers — there is no session state to pin a client to.
+# The sub-app is mounted at /mcp, so its own route is the mount root.
+mcp_app = build_http_app()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.templates = templates
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        await conn.run_sync(Base.metadata.create_all)
+    # Starlette does not run a mounted sub-app's lifespan, so the MCP session
+    # manager has to be started here or every /mcp request fails.
+    async with mcp_app.router.lifespan_context(mcp_app):
+        yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="Smartipedia",
     version="0.3.0",
     description=(
@@ -47,6 +68,9 @@ templates.env.globals["umami_script"] = bool(app_settings.umami_website_id)
 templates.env.globals["umami_website_id"] = app_settings.umami_website_id
 templates.env.globals["github_auth_enabled"] = bool(app_settings.github_client_id)
 templates.env.globals["google_auth_enabled"] = bool(app_settings.google_client_id)
+
+# Remote MCP server — https://smartipedia.com/mcp
+app.mount("/mcp", mcp_app)
 
 # Routes
 app.include_router(auth.router)
@@ -247,10 +271,3 @@ async def inject_user(request: Request, call_next):
             pass
     return await call_next(request)
 
-
-@app.on_event("startup")
-async def startup():
-    app.state.templates = templates
-    async with engine.begin() as conn:
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        await conn.run_sync(Base.metadata.create_all)
