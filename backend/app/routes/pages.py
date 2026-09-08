@@ -163,6 +163,15 @@ async def journeys_page(request: Request):
     )
 
 
+@router.get("/connect", response_class=HTMLResponse)
+async def connect_page(request: Request):
+    """Human-readable setup guide for the MCP server mounted at /mcp."""
+    return request.app.state.templates.TemplateResponse(
+        "pages/connect.html",
+        {"request": request, "mcp_url": "https://smartipedia.com/mcp"},
+    )
+
+
 @router.get("/graph", response_class=HTMLResponse)
 async def graph_page(request: Request):
     return request.app.state.templates.TemplateResponse(

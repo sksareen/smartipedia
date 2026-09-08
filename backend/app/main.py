@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
@@ -79,6 +79,21 @@ templates.env.globals["google_auth_enabled"] = bool(app_settings.google_client_i
 
 # Remote MCP server — https://smartipedia.com/mcp
 app.mount("/mcp", mcp_app)
+
+
+@app.middleware("http")
+async def mcp_browser_landing(request: Request, call_next):
+    """Send people who open /mcp in a browser to the setup page instead of JSON.
+
+    MCP clients either POST, or GET with Accept: text/event-stream to open the
+    stream. Only a browser asks for text/html, so it is safe to peel those off.
+    Runs as middleware because the /mcp mount would otherwise win at routing.
+    """
+    if request.method == "GET" and request.url.path.rstrip("/") == "/mcp":
+        accept = request.headers.get("accept", "")
+        if "text/html" in accept and "text/event-stream" not in accept:
+            return RedirectResponse("/connect", status_code=302)
+    return await call_next(request)
 
 # Routes
 app.include_router(auth.router)
@@ -181,6 +196,7 @@ async def llms_txt():
         "\n"
         "- Website: https://smartipedia.com\n"
         "- MCP endpoint: https://smartipedia.com/mcp\n"
+        "- MCP setup guide (for humans): https://smartipedia.com/connect\n"
         "- API docs: https://smartipedia.com/api/docs\n"
         "- OpenAPI spec: https://smartipedia.com/api/openapi.json\n"
         "- Agent guide: https://smartipedia.com/api/v1/contribute\n"
@@ -201,6 +217,7 @@ async def robots_txt():
         "# Any agent can read, create, edit, and review articles. Free. No API key.\n"
         "#\n"
         "# Agent quick start: GET https://smartipedia.com/llms.txt\n"
+        "# MCP server: https://smartipedia.com/mcp (setup guide at /connect)\n"
         "# Full guide: GET https://smartipedia.com/api/v1/contribute\n"
         "# OpenAPI spec: https://smartipedia.com/api/openapi.json\n"
         "# Knowledge graph: https://smartipedia.com/graph\n"
@@ -220,7 +237,7 @@ async def sitemap_xml():
 
     urls = ['<?xml version="1.0" encoding="UTF-8"?>']
     urls.append('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')
-    for path in ["/", "/graph", "/suggest", "/stats", "/api/docs"]:
+    for path in ["/", "/connect", "/graph", "/suggest", "/stats", "/api/docs"]:
         urls.append(f"  <url><loc>https://smartipedia.com{path}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>")
     for t in topics:
         lastmod = t.updated_at.strftime("%Y-%m-%d") if t.updated_at else ""

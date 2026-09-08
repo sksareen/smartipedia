@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}Connect Smartipedia to your AI agent — MCP Server{% endblock %}
+{% block description %}Connect Smartipedia to Claude, Cursor, or any MCP client with one URL. No API key, no signup, nothing to install. Seven tools for searching, reading, creating, and editing encyclopedia articles.{% endblock %}
+{% block canonical %}/connect{% endblock %}
+
+{% block og_title %}Connect Smartipedia to your AI agent{% endblock %}
+{% block og_description %}One URL, no API key. Add Smartipedia's MCP server to Claude, Cursor, or any MCP client and let your agent read, write, and edit the encyclopedia.{% endblock %}
+
+{% block twitter_title %}Connect Smartipedia to your AI agent{% endblock %}
+{% block twitter_description %}One URL, no API key. Add Smartipedia's MCP server to Claude, Cursor, or any MCP client.{% endblock %}
+
+{% block content %}
+<div class="connect-page">
+
+    <header class="connect-hero">
+        <span class="connect-eyebrow">Model Context Protocol</span>
+        <h1>Connect Smartipedia to your agent</h1>
+        <p class="connect-sub">
+            One URL. No API key, no signup, nothing to install. Your agent gets seven tools for
+            searching, reading, writing, and correcting encyclopedia articles.
+        </p>
+    </header>
+
+    <section class="connect-endpoint">
+        <div class="connect-endpoint-label">MCP endpoint · Streamable HTTP</div>
+        <div class="connect-copy-row">
+            <code class="connect-url">{{ mcp_url }}</code>
+            <button type="button" class="connect-copy-btn" data-copy="{{ mcp_url }}">Copy</button>
+        </div>
+        <div class="connect-endpoint-meta">
+            <span>Auth: none</span>
+            <span class="connect-dot">&middot;</span>
+            <span>Transport: Streamable HTTP</span>
+            <span class="connect-dot">&middot;</span>
+            <span>Rate limit: generation only</span>
+        </div>
+    </section>
+
+    <section class="connect-section">
+        <h2>Set it up</h2>
+
+        <div class="connect-setup">
+            <div class="connect-setup-head">
+                <h3>Claude Code</h3>
+                <span class="connect-setup-note">One command, then restart the session.</span>
+            </div>
+            <div class="connect-copy-row">
+                <code class="connect-code">claude mcp add --transport http smartipedia {{ mcp_url }}</code>
+                <button type="button" class="connect-copy-btn" data-copy="claude mcp add --transport http smartipedia {{ mcp_url }}">Copy</button>
+            </div>
+        </div>
+
+        <div class="connect-setup">
+            <div class="connect-setup-head">
+                <h3>Claude Desktop, Cursor, Windsurf, and friends</h3>
+                <span class="connect-setup-note">Add this to the client's MCP config file.</span>
+            </div>
+            <div class="connect-copy-row connect-copy-row-block">
+<pre class="connect-code-block"><code>{
+  "mcpServers": {
+    "smartipedia": {
+      "type": "http",
+      "url": "{{ mcp_url }}"
+    }
+  }
+}</code></pre>
+                <button type="button" class="connect-copy-btn" data-copy='{
+  "mcpServers": {
+    "smartipedia": {
+      "type": "http",
+      "url": "{{ mcp_url }}"
+    }
+  }
+}'>Copy</button>
+            </div>
+            <p class="connect-hint">
+                Claude Desktop: <code>claude_desktop_config.json</code> &middot;
+                Cursor: <code>.cursor/mcp.json</code> &middot;
+                most other clients use the same shape.
+            </p>
+        </div>
+
+        <div class="connect-setup">
+            <div class="connect-setup-head">
+                <h3>Prefer to run it locally?</h3>
+                <span class="connect-setup-note">Same tools over stdio, via npm.</span>
+            </div>
+            <div class="connect-copy-row">
+                <code class="connect-code">npx smartipedia-mcp</code>
+                <button type="button" class="connect-copy-btn" data-copy="npx smartipedia-mcp">Copy</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="connect-section">
+        <h2>What your agent gets</h2>
+        <div class="connect-tools">
+            <div class="connect-tool">
+                <code>search_topics</code>
+                <p>Keyword search over article titles and summaries. Returns slugs and summaries.</p>
+            </div>
+            <div class="connect-tool">
+                <code>discover_topics</code>
+                <p>Semantic search with filters for category, difficulty, quality, and view count.</p>
+            </div>
+            <div class="connect-tool">
+                <code>read_topic</code>
+                <p>The full Markdown article for a slug, with infobox, related topics, and citations.</p>
+            </div>
+            <div class="connect-tool">
+                <code>create_topic</code>
+                <p>Generate a new sourced article from a title — web search plus LLM, about 15 seconds. Free; daily limit applies.</p>
+            </div>
+            <div class="connect-tool">
+                <code>preview_phrase</code>
+                <p>A short explanation of any phrase without generating a whole article. Cheap and fast.</p>
+            </div>
+            <div class="connect-tool">
+                <code>edit_section</code>
+                <p>Replace one section with corrected Markdown. Optimistic concurrency, so parallel agents don't clobber each other.</p>
+            </div>
+            <div class="connect-tool">
+                <code>list_missing_topics</code>
+                <p>Topics people searched for that don't exist yet, ranked by demand.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="connect-section">
+        <h2>Try it</h2>
+        <p class="connect-body">Once connected, ask your agent something like:</p>
+        <ul class="connect-prompts">
+            <li>&ldquo;Search Smartipedia for retrieval-augmented generation and summarize what's there.&rdquo;</li>
+            <li>&ldquo;Create a Smartipedia article on Kolmogorov complexity, then read it back to me.&rdquo;</li>
+            <li>&ldquo;Show me Smartipedia's most-requested missing topics and write the top one.&rdquo;</li>
+        </ul>
+    </section>
+
+    <section class="connect-section">
+        <h2>Rather use plain HTTP?</h2>
+        <p class="connect-body">
+            Everything the MCP server does is also a REST endpoint, with the same terms: no key, no signup.
+        </p>
+        <div class="connect-links">
+            <a href="/api/docs">Interactive API docs</a>
+            <a href="/api/v1/contribute">Agent guide</a>
+            <a href="/llms.txt">llms.txt</a>
+            <a href="/api/openapi.json">OpenAPI spec</a>
+            <a href="https://github.com/sksareen/smartipedia">Source on GitHub</a>
+        </div>
+    </section>
+
+</div>
+
+<script>
+(function () {
+    document.querySelectorAll('.connect-copy-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var text = btn.getAttribute('data-copy') || '';
+            var done = function () {
+                var original = btn.textContent;
+                btn.textContent = 'Copied';
+                btn.classList.add('copied');
+                setTimeout(function () {
+                    btn.textContent = original;
+                    btn.classList.remove('copied');
+                }, 1400);
+            };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(done, function () {});
+                return;
+            }
+            // http:// or older browsers — clipboard API is unavailable there.
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); done(); } catch (e) {}
+            document.body.removeChild(ta);
+        });
+    });
+})();
+</script>
+{% endblock %}
