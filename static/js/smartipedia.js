@@ -11,8 +11,12 @@
   }
 
   function applyTheme(theme) {
+    const previousTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
     document.documentElement.classList.toggle('dark', theme === 'dark');
     localStorage.setItem(THEME_KEY, theme);
+    if (previousTheme !== theme) {
+      document.dispatchEvent(new CustomEvent('smartipedia:theme-change', { detail: { theme: theme } }));
+    }
     const btn = document.getElementById('theme-toggle');
     if (btn) {
       btn.innerHTML = theme === 'dark'
@@ -334,25 +338,57 @@
   }
 
   // ==================== KEYWORD LINKS ====================
+  // Cross-links come from the compact /api/v1/link-index endpoint (cached a
+  // day in localStorage) — the old inline blob cost ~500KB on every page.
+  var LINK_INDEX_CACHE_KEY = 'smartipedia-link-index';
+  var LINK_INDEX_TTL_MS = 24 * 60 * 60 * 1000;
+  var MAX_KEYWORD_LINKS = 40;
+
+  function getLinkIndex() {
+    var cached = null;
+    try { cached = JSON.parse(localStorage.getItem(LINK_INDEX_CACHE_KEY)); } catch (e) {}
+    if (cached && cached.links && (Date.now() - (cached.ts || 0) < LINK_INDEX_TTL_MS)) {
+      return Promise.resolve(cached.links);
+    }
+    return fetch('/api/v1/link-index')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var links = data.links || [];
+        try {
+          localStorage.setItem(LINK_INDEX_CACHE_KEY, JSON.stringify({
+            version: data.version, ts: Date.now(), links: links,
+          }));
+        } catch (e) {}
+        return links;
+      })
+      .catch(function () { return cached && cached.links ? cached.links : []; });
+  }
+
   function initKeywordLinks() {
     var content = document.querySelector('.topic-content');
     if (!content) return;
 
-    var relatedEl = document.getElementById('related-data');
-    if (!relatedEl) return;
+    getLinkIndex().then(function (links) {
+      if (!links || links.length === 0) return;
 
-    var related;
-    try { related = JSON.parse(relatedEl.textContent); }
-    catch (e) { return; }
+      var currentSlug = '';
+      var topicDataEl = document.getElementById('topic-data');
+      if (topicDataEl) {
+        try { currentSlug = JSON.parse(topicDataEl.textContent).slug || ''; }
+        catch (e) {}
+      }
 
-    if (!related || related.length === 0) return;
+      // Longest titles first so "New York City" wins over "York".
+      var sorted = links.slice().sort(function (a, b) { return b[1].length - a[1].length; });
 
-    related.sort(function (a, b) { return b.title.length - a.title.length; });
-
-    var linked = new Set();
-    related.forEach(function (topic) {
-      if (linked.has(topic.slug)) return;
-      if (linkKeywordInContent(content, topic.title, topic)) linked.add(topic.slug);
+      var linked = 0;
+      for (var i = 0; i < sorted.length && linked < MAX_KEYWORD_LINKS; i++) {
+        var slug = sorted[i][0], title = sorted[i][1], summary = sorted[i][2] || '';
+        if (!slug || !title || slug === currentSlug) continue;
+        if (linkKeywordInContent(content, title, { slug: slug, title: title, summary: summary })) {
+          linked++;
+        }
+      }
     });
   }
 

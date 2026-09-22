@@ -13,8 +13,9 @@
             <span class="stat-label">Topics</span>
         </div>
         <div class="stat-card">
-            <span class="stat-number">{{ overview.total_views }}</span>
-            <span class="stat-label">Total Views</span>
+            <span class="stat-number">{{ overview.human_views }}</span>
+            <span class="stat-label">Human Views</span>
+            <span class="stat-sub">{{ overview.total_views }} incl. bots</span>
         </div>
         <div class="stat-card">
             <span class="stat-number">{{ overview.total_searches }}</span>
@@ -114,21 +115,118 @@
 
         <!-- Popular Topics -->
         <section class="stats-section">
-            <h2>Most Viewed</h2>
+            <h2>Most Read</h2>
+            <p class="stats-note">Ranked by browser traffic only.</p>
             {% if popular %}
             <table class="stats-table">
-                <thead><tr><th>Topic</th><th>Views</th></tr></thead>
+                <thead><tr><th>Topic</th><th>Readers</th><th>All hits</th></tr></thead>
                 <tbody>
                 {% for t in popular %}
                 <tr>
                     <td><a href="/topic/{{ t.slug }}">{{ t.title }}</a></td>
-                    <td class="stats-count">{{ t.view_count }}</td>
+                    <td class="stats-count">{{ t.human_view_count or 0 }}</td>
+                    <td class="stats-count stats-muted">{{ t.view_count }}</td>
                 </tr>
                 {% endfor %}
                 </tbody>
             </table>
             {% else %}
             <p class="stats-empty">No topics yet</p>
+            {% endif %}
+        </section>
+
+        <!-- Audience mix -->
+        <section class="stats-section stats-wide">
+            <h2>Who's Using Smartipedia</h2>
+            <p class="stats-note">
+                Last {{ traffic.days }} days &middot; {{ traffic.total_requests }} requests, measured
+                server-side so agent and crawler traffic is counted too.
+            </p>
+            {% if traffic.by_client_type %}
+            <div class="audience-bars">
+                {% for row in traffic.by_client_type %}
+                <div class="audience-row">
+                    <span class="audience-label">
+                        <span class="audience-dot audience-{{ row.client_type }}"></span>
+                        {{ row.client_type.replace('_', ' ') }}
+                    </span>
+                    <span class="audience-track">
+                        <span class="audience-fill audience-{{ row.client_type }}" style="width: {{ row.share }}%"></span>
+                    </span>
+                    <span class="audience-value">{{ row.share }}%</span>
+                    <span class="audience-meta">{{ row.requests }} reqs &middot; {{ row.uniques }} clients</span>
+                </div>
+                {% endfor %}
+            </div>
+
+            <table class="stats-table stats-surface-table">
+                <thead>
+                    <tr>
+                        <th>Surface</th><th>Human</th><th>AI agent</th>
+                        <th>API client</th><th>Crawler</th><th>Unknown</th><th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for name, row in traffic.by_surface.items() %}
+                <tr>
+                    <td class="stats-editor">{{ name }}</td>
+                    <td class="stats-count">{{ row.get('human', 0) }}</td>
+                    <td class="stats-count">{{ row.get('ai_agent', 0) }}</td>
+                    <td class="stats-count">{{ row.get('api_client', 0) }}</td>
+                    <td class="stats-count">{{ row.get('crawler', 0) }}</td>
+                    <td class="stats-count">{{ row.get('unknown', 0) }}</td>
+                    <td class="stats-count">{{ row.total }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="stats-empty">No requests logged yet — data starts accumulating on deploy.</p>
+            {% endif %}
+        </section>
+
+        <!-- Top clients -->
+        <section class="stats-section">
+            <h2>Top Clients</h2>
+            {% if top_clients %}
+            <table class="stats-table">
+                <thead><tr><th>Client</th><th>Type</th><th>Requests</th></tr></thead>
+                <tbody>
+                {% for c in top_clients %}
+                <tr>
+                    <td class="stats-editor">{{ c.ua_family }}</td>
+                    <td>
+                        <span class="audience-dot audience-{{ c.client_type }}"></span>
+                        <span class="stats-muted">{{ c.client_type.replace('_', ' ') }}</span>
+                    </td>
+                    <td class="stats-count">{{ c.requests }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="stats-empty">No clients logged yet</p>
+            {% endif %}
+        </section>
+
+        <!-- Referrers -->
+        <section class="stats-section">
+            <h2>Where Readers Come From</h2>
+            <p class="stats-note">Human traffic, last 30 days.</p>
+            {% if referrers %}
+            <table class="stats-table">
+                <thead><tr><th>Referrer</th><th>Visits</th></tr></thead>
+                <tbody>
+                {% for r in referrers %}
+                <tr>
+                    <td class="stats-referrer">{{ r.referrer }}</td>
+                    <td class="stats-count">{{ r.visits }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="stats-empty">No referrers yet — most visits are direct.</p>
             {% endif %}
         </section>
     </div>

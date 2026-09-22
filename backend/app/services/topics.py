@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import markdown
 from slugify import slugify
-from sqlalchemy import select, update, func as sqlfunc
+from sqlalchemy import case, exists, func as sqlfunc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
@@ -13,6 +13,66 @@ from ..models import GenerationLog, SearchLog, Topic, TopicLink, TopicRevision
 from .llm import generate_embedding, generate_topic
 from .moderation import ModerationError, check_title
 from .search import web_search
+
+
+# Topics whose quality.status is "quarantined" stay directly viewable (no dead
+# links) but are excluded from every listing: homepage, search, graph, sitemap.
+def _visible_clause():
+    status = Topic.metadata_["quality"]["status"].astext
+    return sqlfunc.coalesce(status, "") != "quarantined"
+
+
+def _escape_like(s: str) -> str:
+    """Escape user input for use inside a LIKE pattern."""
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+# Single-word titles in this set are never auto-linked in article text.
+# They match verbs, months, seasons and other everyday words ("may", "cross",
+# "season") whose links read as noise rather than navigation.
+_LINK_STOPWORDS: set[str] = {
+    "may", "march", "april", "june", "july", "august",
+    "spring", "summer", "autumn", "winter", "fall", "season", "seasons",
+    "morning", "evening", "night", "midnight", "today", "tomorrow", "yesterday",
+    "time", "times", "day", "days", "week", "weeks", "month", "months",
+    "year", "years", "decade", "century", "moment", "hour", "minute",
+    "light", "dark", "darkness", "shadow", "color", "colour", "sound",
+    "cross", "across", "bridge", "bridges", "path", "road", "roads",
+    "run", "walk", "jump", "fly", "swim", "sing", "dance", "play", "game",
+    "love", "hate", "fear", "hope", "dream", "dreams", "life", "death",
+    "man", "men", "woman", "women", "child", "children", "people", "person",
+    "hand", "hands", "eye", "eyes", "heart", "mind", "body", "voice",
+    "home", "house", "room", "door", "window", "table", "food", "water",
+    "dog", "dogs", "cat", "cats", "bird", "birds", "fish", "bee", "bees",
+    "tree", "trees", "flower", "flowers", "grass", "stone", "rock",
+    "sun", "moon", "star", "stars", "sky", "sea", "ocean", "river", "lake",
+    "fire", "rain", "snow", "wind", "storm", "cloud", "earth",
+    "war", "peace", "work", "works", "job", "money", "power",
+    "art", "arts", "music", "song", "book", "books", "word", "words",
+    "oil", "gold", "silver", "iron", "salt", "sugar",
+}
+
+
+def is_linkworthy_title(title: str) -> bool:
+    """Whether a topic title may be auto-linked inside article text.
+
+    Multi-word titles are specific enough to link freely. Single words need
+    at least 4 characters and must not be everyday vocabulary.
+    """
+    cleaned = (title or "").strip()
+    if len(cleaned) < 3:
+        return False
+    if " " not in cleaned:
+        return len(cleaned) >= 4 and cleaned.lower() not in _LINK_STOPWORDS
+    return True
+
+
+# Metadata categories — excluded from "missing topics" since searching for a
+# category name is browsing, not a request for a new article.
+_METADATA_CATEGORIES: set[str] = {
+    "science", "technology", "mathematics", "history", "society", "arts",
+    "philosophy", "health", "economics", "geography", "law", "engineering",
+}
 
 
 async def get_topic_by_slug(db: AsyncSession, slug: str) -> Topic | None:
@@ -273,23 +333,44 @@ async def flag_topic(
 
 # ==================== SEARCH ====================
 
-async def search_topics(db: AsyncSession, query: str, limit: int = 20, searcher: str = "anonymous") -> list[Topic]:
-    """Full-text search across topic titles and summaries. Logs the search."""
+async def search_topics(
+    db: AsyncSession,
+    query: str,
+    limit: int = 20,
+    searcher: str = "anonymous",
+    log: bool = True,
+) -> list[Topic]:
+    """Full-text search across topic titles and summaries. Logs the search.
+
+    Ranked: exact title match first, then title prefix, then title substring,
+    then summary matches. Set log=False for keystroke endpoints (Cmd+K) so
+    partial queries don't pollute the missing-topics analytics.
+    """
+    q = (query or "").strip()
+    q_lower = q.lower()
+    q_esc = _escape_like(q_lower)
+    rank = case(
+        (sqlfunc.lower(Topic.title) == q_lower, 0),
+        (sqlfunc.lower(Topic.title).like(q_esc + "%", escape="\\"), 1),
+        (sqlfunc.lower(Topic.title).like("%" + q_esc + "%", escape="\\"), 2),
+        else_=3,
+    )
     result = await db.execute(
         select(Topic)
         .where(
-            Topic.title.ilike(f"%{query}%")
-            | Topic.summary.ilike(f"%{query}%")
+            _visible_clause(),
+            Topic.title.ilike(f"%{_escape_like(q)}%", escape="\\")
+            | Topic.summary.ilike(f"%{_escape_like(q)}%", escape="\\"),
         )
-        .order_by(Topic.view_count.desc())
+        .order_by(rank, sqlfunc.coalesce(Topic.human_view_count, 0).desc(), Topic.view_count.desc())
         .limit(limit)
     )
     topics = list(result.scalars().all())
 
     # Log the search
-    log = SearchLog(query=query, result_count=len(topics), searcher=searcher)
-    db.add(log)
-    await db.commit()
+    if log:
+        db.add(SearchLog(query=q, result_count=len(topics), searcher=searcher))
+        await db.commit()
 
     return topics
 
@@ -304,7 +385,7 @@ async def semantic_search_topics(
     limit: int = 20,
 ) -> list[Topic]:
     """Semantic search using pgvector cosine distance with JSONB filters."""
-    stmt = select(Topic).where(Topic.embedding.isnot(None))
+    stmt = select(Topic).where(Topic.embedding.isnot(None), _visible_clause())
 
     if category:
         stmt = stmt.where(Topic.metadata_["category"].astext == category)
@@ -323,14 +404,31 @@ async def semantic_search_topics(
 # ==================== ANALYTICS ====================
 
 async def get_missing_topics(db: AsyncSession, limit: int = 20) -> list[dict]:
-    """Most-searched queries that returned 0 results."""
+    """Most-searched queries that returned 0 results.
+
+    Filters the noise: template placeholders ({search_term_string} leaks in
+    from the JSON-LD SearchAction), stubs under 3 chars, bare category names,
+    and queries that have since been answered by a new article. Groups
+    case-insensitively so "Science" and "science" count once.
+    """
+    normalized = sqlfunc.lower(sqlfunc.trim(SearchLog.query))
+    already_exists = exists(
+        select(Topic.id).where(sqlfunc.lower(Topic.title) == normalized)
+    )
     result = await db.execute(
         select(
-            SearchLog.query,
+            sqlfunc.min(SearchLog.query).label("query"),
             sqlfunc.count(SearchLog.id).label("search_count"),
         )
-        .where(SearchLog.result_count == 0)
-        .group_by(SearchLog.query)
+        .where(
+            SearchLog.result_count == 0,
+            sqlfunc.length(sqlfunc.trim(SearchLog.query)) >= 3,
+            ~SearchLog.query.like("%{%"),
+            ~SearchLog.query.like("%}%"),
+            normalized.notin_(_METADATA_CATEGORIES),
+            ~already_exists,
+        )
+        .group_by(normalized)
         .order_by(sqlfunc.count(SearchLog.id).desc())
         .limit(limit)
     )
@@ -344,7 +442,7 @@ async def get_stale_topics(db: AsyncSession, days: int = 30, limit: int = 20) ->
     cutoff = cutoff - timedelta(days=days)
     result = await db.execute(
         select(Topic)
-        .where(Topic.updated_at < cutoff)
+        .where(Topic.updated_at < cutoff, _visible_clause())
         .order_by(Topic.view_count.desc())
         .limit(limit)
     )
@@ -356,6 +454,7 @@ async def get_flagged_topics(db: AsyncSession, limit: int = 20) -> list[Topic]:
     result = await db.execute(
         select(Topic)
         .where(
+            _visible_clause(),
             sqlfunc.jsonb_array_length(
                 Topic.metadata_["quality"]["flagged_issues"]
             ) > 0
@@ -485,7 +584,10 @@ async def get_related_topics(db: AsyncSession, topic: Topic) -> list[Topic]:
 
 async def get_recent_topics(db: AsyncSession, limit: int = 20) -> list[Topic]:
     result = await db.execute(
-        select(Topic).order_by(Topic.created_at.desc()).limit(limit)
+        select(Topic)
+        .where(_visible_clause())
+        .order_by(Topic.created_at.desc())
+        .limit(limit)
     )
     return list(result.scalars().all())
 
@@ -496,7 +598,7 @@ async def get_popular_topics(db: AsyncSession, limit: int = 20, human_only: bool
     dominated by crawlers sweeping the corpus in slug order."""
     column = Topic.human_view_count if human_only else Topic.view_count
     result = await db.execute(
-        select(Topic).order_by(column.desc()).limit(limit)
+        select(Topic).where(_visible_clause()).order_by(column.desc()).limit(limit)
     )
     return list(result.scalars().all())
 
@@ -504,6 +606,35 @@ async def get_popular_topics(db: AsyncSession, limit: int = 20, human_only: bool
 async def get_topic_count(db: AsyncSession) -> int:
     result = await db.execute(select(sqlfunc.count(Topic.id)))
     return result.scalar_one()
+
+
+async def get_link_index(db: AsyncSession) -> tuple[list[list[str]], str]:
+    """Compact cross-link index: [[slug, title, summary], ...] for linkworthy topics.
+
+    Powers client-side keyword linking (titles to match, summaries for hover
+    tooltips). Quarantined and everyday-word titles are excluded. Returns
+    (links, version) where version changes whenever the corpus does, so
+    browsers know when to refresh their cached copy.
+    """
+    result = await db.execute(
+        select(Topic.slug, Topic.title, Topic.summary)
+        .where(_visible_clause())
+        .order_by(Topic.title)
+    )
+    links = [
+        [slug, title, (summary or "")[:140]]
+        for slug, title, summary in result.all()
+        if is_linkworthy_title(title)
+    ]
+    stats = await db.execute(
+        select(
+            sqlfunc.count(Topic.id),
+            sqlfunc.max(Topic.updated_at),
+        ).where(_visible_clause())
+    )
+    count, max_updated = stats.one()
+    version = f"{count}-{(max_updated.isoformat() if max_updated else '')}"
+    return links, version
 
 
 class ConflictError(Exception):

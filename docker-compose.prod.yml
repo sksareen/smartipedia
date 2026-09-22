@@ -13,8 +13,8 @@ services:
       searxng:
         condition: service_started
     # --proxy-headers: Caddy terminates TLS, so without X-Forwarded-Proto uvicorn
-    # builds redirects as http:// — which downgraded /mcp -> /mcp/ for agents.
-    command: uv run uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips='*'
+    # builds redirects as http:// — which downgraded POST /mcp -> /mcp/ for agents.
+    command: uv run uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips='*'
 
   db:
     image: pgvector/pgvector:pg16
@@ -41,36 +41,31 @@ services:
       - ./searxng:/etc/searxng
     environment:
       - SEARXNG_BASE_URL=https://smartipedia.com/searxng/
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     restart: always
 
+  # Umami reuses the existing Postgres (own role + database) instead of running
+  # a second one — this droplet has 2GB of RAM and five containers already.
   umami:
     image: ghcr.io/umami-software/umami:postgresql-latest
     ports:
       - "127.0.0.1:3000:3000"
     environment:
-      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD:-umami}@umami-db:5432/umami
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD}@db:5432/umami
       DATABASE_TYPE: postgresql
-      APP_SECRET: ${UMAMI_SECRET:-change-me-in-production}
+      APP_SECRET: ${UMAMI_SECRET}
+      DISABLE_TELEMETRY: "1"
     depends_on:
-      umami-db:
+      db:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 384M
     restart: always
-
-  umami-db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: umami
-      POSTGRES_USER: umami
-      POSTGRES_PASSWORD: ${UMAMI_DB_PASSWORD:-umami}
-    volumes:
-      - umami_pgdata:/var/lib/postgresql/data
-    restart: always
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U umami"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
 volumes:
   smartipedia_pgdata:
-  umami_pgdata:

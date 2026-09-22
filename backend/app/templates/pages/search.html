@@ -6,6 +6,16 @@
 <section class="search-page">
     <h1>Search results for "{{ query }}"</h1>
 
+    {% if query and not exact_match %}
+    <div class="search-generate-cta">
+        <p>No exact match for "{{ query }}".</p>
+        <form action="/generate-async" method="post" class="hero-form">
+            <input type="hidden" name="title" value="{{ query }}">
+            <button type="submit">Generate "{{ query }}" as a new article</button>
+        </form>
+    </div>
+    {% endif %}
+
     {% if results %}
     <div class="search-results">
         {% for topic in results %}

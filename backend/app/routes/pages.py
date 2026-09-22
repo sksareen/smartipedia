@@ -41,8 +41,11 @@ async def home(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/search", response_class=HTMLResponse)
 async def search_page(request: Request, q: str = "", db: AsyncSession = Depends(get_db)):
     results = []
+    exact_match = False
     if q:
         results = await search_topics(db, q, searcher=getattr(request.state, "client_type", "web"))
+        q_lower = q.strip().lower()
+        exact_match = any((t.title or "").strip().lower() == q_lower for t in results)
     is_htmx = request.headers.get("HX-Request") == "true"
     if is_htmx:
         return request.app.state.templates.TemplateResponse(
@@ -51,7 +54,7 @@ async def search_page(request: Request, q: str = "", db: AsyncSession = Depends(
         )
     return request.app.state.templates.TemplateResponse(
         "pages/search.html",
-        {"request": request, "results": results, "query": q},
+        {"request": request, "results": results, "query": q, "exact_match": exact_match},
     )
 
 
@@ -72,18 +75,10 @@ async def view_topic(request: Request, slug: str, db: AsyncSession = Depends(get
     await db.refresh(topic)
     related = await get_related_topics(db, topic)
     sources_json = json.dumps(topic.sources or [])
-    # Send all topics for cross-linking (not just related), excluding current
-    from sqlalchemy import select as sel
-    from ..models import Topic
-    all_topics_result = await db.execute(
-        sel(Topic.slug, Topic.title, Topic.summary).where(Topic.slug != topic.slug)
-    )
-    all_topics = all_topics_result.all()
-    related_json = json.dumps([
-        {"slug": r.slug, "title": r.title, "summary": r.summary or ""}
-        for r in all_topics
-    ])
+    # Cross-linking used to inline every topic as JSON (~500KB/page). The
+    # browser now fetches the compact /api/v1/link-index once and caches it.
     infobox = topic.infobox or {}
+    is_quarantined = (topic.metadata_ or {}).get("quality", {}).get("status") == "quarantined"
     # Compute relative time
     now = datetime.now(timezone.utc)
     created = topic.created_at.replace(tzinfo=timezone.utc) if topic.created_at else now
@@ -98,9 +93,8 @@ async def view_topic(request: Request, slug: str, db: AsyncSession = Depends(get
         mins = max(1, delta.seconds // 60)
         time_ago = f"{mins} minute{'s' if mins != 1 else ''} ago"
 
-    # Hero image: use first source image or Unsplash fallback
-    from urllib.parse import quote
-    hero_image = f"https://source.unsplash.com/800x350/?{quote(topic.title)}"
+    # NOTE: source.unsplash.com was discontinued, so topic pages no longer use a
+    # hero image. Social previews fall back to the default OG card.
 
     return request.app.state.templates.TemplateResponse(
         "pages/topic.html",
@@ -109,10 +103,9 @@ async def view_topic(request: Request, slug: str, db: AsyncSession = Depends(get
             "topic": topic,
             "related": related,
             "sources_json": sources_json,
-            "related_json": related_json,
             "infobox": infobox,
             "time_ago": time_ago,
-            "hero_image": hero_image,
+            "is_quarantined": is_quarantined,
         },
     )
 
@@ -182,10 +175,11 @@ async def graph_page(request: Request):
 
 @router.get("/api/quick-search", response_class=HTMLResponse)
 async def quick_search(request: Request, q: str = "", db: AsyncSession = Depends(get_db)):
-    """HTMX endpoint for Cmd+K search modal."""
+    """HTMX endpoint for Cmd+K search modal. Unlogged: every keystroke hits
+    this endpoint, and logging partial queries pollutes missing-topic stats."""
     results = []
     if q and len(q) >= 2:
-        results = await search_topics(db, q, limit=8)
+        results = await search_topics(db, q, limit=8, log=False)
     return request.app.state.templates.TemplateResponse(
         "components/quick_search_results.html",
         {"request": request, "results": results, "query": q},
@@ -234,7 +228,8 @@ async def generating_page(request: Request, slug: str, title: str = "", db: Asyn
 async def generate_async(request: Request, db: AsyncSession = Depends(get_db)):
     """Start topic generation and redirect to the generating page."""
     form = await request.form()
-    title = form.get("title", "").strip()
+    # The hero form submits `q` (shared with search); accept `title` too.
+    title = (form.get("title") or form.get("q") or "").strip()
     if not title:
         return RedirectResponse("/", status_code=303)
     # Content moderation check

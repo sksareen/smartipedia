@@ -7,6 +7,12 @@
     <div class="graph-header">
         <h1>Knowledge Graph</h1>
         <p class="graph-subtitle">Explore how topics connect across Smartipedia</p>
+        <div class="graph-controls">
+            <input type="text" id="graph-search" class="graph-search" placeholder="Find a topic..." autocomplete="off">
+            <button id="graph-toggle" class="graph-toggle-btn" title="Toggle between top topics and the full corpus">Show all</button>
+            <span id="graph-count" class="graph-count"></span>
+        </div>
+        <div id="graph-legend" class="graph-legend"></div>
     </div>
     <div class="graph-container" id="graph-container">
         <canvas id="graph-canvas"></canvas>
@@ -16,21 +22,40 @@
 
 <script>
 (function() {
+  var DEFAULT_LIMIT = 150;
   var canvas = document.getElementById('graph-canvas');
   var ctx = canvas.getContext('2d');
   var container = document.getElementById('graph-container');
   var tooltip = document.getElementById('graph-tooltip');
+  var searchInput = document.getElementById('graph-search');
+  var toggleBtn = document.getElementById('graph-toggle');
+  var countEl = document.getElementById('graph-count');
+  var legendEl = document.getElementById('graph-legend');
   var nodes = [];
   var edges = [];
   var nodeMap = {};
   var hoveredNode = null;
   var dragNode = null;
-  var offsetX = 0, offsetY = 0;
   var scale = 1;
   var panX = 0, panY = 0;
-  var isDragging = false;
   var isPanning = false;
   var lastMouse = {x: 0, y: 0};
+  var searchQuery = '';
+  var showingAll = false;
+  var labelMinViews = 0;
+  var simRunning = false;
+
+  // Stable color per category (pairs read well on light and dark).
+  var CATEGORY_COLORS = {
+    'Science': '#2563eb', 'Technology': '#7c3aed', 'Mathematics': '#db2777',
+    'History': '#b45309', 'Society': '#059669', 'Arts': '#dc2626',
+    'Philosophy': '#4f46e5', 'Health': '#0d9488', 'Economics': '#65a30d',
+    'Geography': '#0284c7', 'Law': '#9333ea', 'Engineering': '#ea580c',
+    '': '#6b7280'
+  };
+  function nodeColor(n) {
+    return CATEGORY_COLORS[n.category] || CATEGORY_COLORS[''];
+  }
 
   function resize() {
     canvas.width = container.clientWidth;
@@ -63,50 +88,115 @@
   };
   var totalTiers = 6;
 
-  fetch('/api/v1/graph')
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      var w = canvas.width, h = canvas.height;
-      var padY = h * 0.1;
-      var usableH = h - padY * 2;
-      var tierSpacing = usableH / (totalTiers - 1);
-      var xSpread = w * 0.18;
+  function loadGraph(limit) {
+    var url = limit ? '/api/v1/graph?limit=' + limit : '/api/v1/graph';
+    if (countEl) countEl.textContent = 'Loading...';
+    fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(data) { buildGraph(data); });
+  }
 
-      nodes = data.nodes.map(function(n, i) {
-        var layout = treeLayout[n.id];
-        var nx, ny;
-        if (layout) {
-          // Place on tree — tier 0 at bottom, tier 5 at top
-          ny = h - padY - layout.tier * tierSpacing;
-          nx = w / 2 + layout.xOff * xSpread;
-        } else {
-          // Unknown topic — place in a ring around center
-          var angle = (i / data.nodes.length) * Math.PI * 2;
-          nx = w / 2 + Math.cos(angle) * w * 0.3;
-          ny = h / 2 + Math.sin(angle) * h * 0.3;
-        }
-        // Small jitter so physics doesn't collapse identical positions
-        nx += (Math.random() - 0.5) * 20;
-        ny += (Math.random() - 0.5) * 20;
+  function buildGraph(data) {
+    var w = canvas.width, h = canvas.height;
+    var padY = h * 0.1;
+    var usableH = h - padY * 2;
+    var tierSpacing = usableH / (totalTiers - 1);
+    var xSpread = w * 0.18;
 
-        return {
-          id: n.id,
-          title: n.title,
-          summary: n.summary,
-          views: n.views,
-          x: nx, y: ny,
-          // Store home position for gentle pull
-          homeX: nx, homeY: ny,
-          vx: 0, vy: 0,
-          radius: Math.max(8, Math.min(22, 8 + Math.sqrt(n.views) * 1.5)),
-        };
-      });
-      nodes.forEach(function(n) { nodeMap[n.id] = n; });
-      edges = data.edges.filter(function(e) {
-        return nodeMap[e.source] && nodeMap[e.target];
-      });
-      simulate();
+    nodeMap = {};
+    nodes = data.nodes.map(function(n, i) {
+      var layout = treeLayout[n.id];
+      var nx, ny;
+      if (layout) {
+        // Place on tree — tier 0 at bottom, tier 5 at top
+        ny = h - padY - layout.tier * tierSpacing;
+        nx = w / 2 + layout.xOff * xSpread;
+      } else {
+        // Unknown topic — place in a ring around center
+        var angle = (i / data.nodes.length) * Math.PI * 2;
+        nx = w / 2 + Math.cos(angle) * w * 0.3;
+        ny = h / 2 + Math.sin(angle) * h * 0.3;
+      }
+      // Small jitter so physics doesn't collapse identical positions
+      nx += (Math.random() - 0.5) * 20;
+      ny += (Math.random() - 0.5) * 20;
+
+      return {
+        id: n.id,
+        title: n.title,
+        summary: n.summary,
+        views: n.views,
+        category: n.category || '',
+        x: nx, y: ny,
+        // Store home position for gentle pull
+        homeX: nx, homeY: ny,
+        vx: 0, vy: 0,
+        radius: Math.max(8, Math.min(22, 8 + Math.sqrt(n.views) * 1.5)),
+      };
     });
+    nodes.forEach(function(n) { nodeMap[n.id] = n; });
+    edges = data.edges.filter(function(e) {
+      return nodeMap[e.source] && nodeMap[e.target];
+    });
+
+    // Label cutoff: only the top ~30% by views get labels at default zoom.
+    var views = nodes.map(function(n) { return n.views; }).sort(function(a, b) { return b - a; });
+    labelMinViews = views.length ? Math.max(views[Math.floor(views.length * 0.3)] || 0, 1) : 0;
+
+    if (countEl) {
+      var total = data.total || nodes.length;
+      countEl.textContent = data.limited
+        ? ('Showing top ' + nodes.length + ' of ' + total + ' topics')
+        : (nodes.length + ' topics');
+    }
+    renderLegend();
+    if (!simRunning) { simRunning = true; simulate(); }
+  }
+
+  function renderLegend() {
+    if (!legendEl) return;
+    var present = {};
+    nodes.forEach(function(n) { if (n.category) present[n.category] = true; });
+    var cats = Object.keys(present).sort();
+    legendEl.innerHTML = cats.map(function(c) {
+      return '<span class="graph-legend-item"><span class="graph-legend-dot" style="background:' +
+        (CATEGORY_COLORS[c] || CATEGORY_COLORS['']) + '"></span>' + c + '</span>';
+    }).join('');
+  }
+
+  if (toggleBtn) toggleBtn.addEventListener('click', function() {
+    showingAll = !showingAll;
+    toggleBtn.textContent = showingAll ? 'Show top ' + DEFAULT_LIMIT : 'Show all';
+    hoveredNode = null;
+    loadGraph(showingAll ? 0 : DEFAULT_LIMIT);
+  });
+
+  function matchesSearch(n) {
+    if (!searchQuery) return true;
+    return n.title.toLowerCase().indexOf(searchQuery) !== -1;
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      searchQuery = searchInput.value.trim().toLowerCase();
+    });
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && searchQuery) {
+        var hit = null;
+        for (var i = 0; i < nodes.length; i++) {
+          if (matchesSearch(nodes[i])) { hit = nodes[i]; break; }
+        }
+        if (hit) {
+          hoveredNode = hit;
+          // Center the hit in view
+          panX = canvas.width / 2 - hit.x * scale;
+          panY = canvas.height / 2 - hit.y * scale;
+        }
+      }
+    });
+  }
+
+  loadGraph(DEFAULT_LIMIT);
 
   function simulate() {
     var damping = 0.82;
@@ -114,53 +204,59 @@
     var attraction = 0.006;
     var targetLen = 140;
     var homeForce = 0.03;  // gentle pull back to tree position
+    var frame = 0;
 
     function tick() {
-      // Repulsion between all nodes
-      for (var i = 0; i < nodes.length; i++) {
-        for (var j = i + 1; j < nodes.length; j++) {
-          var dx = nodes[j].x - nodes[i].x;
-          var dy = nodes[j].y - nodes[i].y;
+      // Full-corpus graphs run physics at half rate — O(n^2) repulsion is
+      // too heavy per frame past a few hundred nodes.
+      var doPhysics = nodes.length < 800 || (frame++ % 2 === 0);
+      if (doPhysics) {
+        // Repulsion between all nodes
+        for (var i = 0; i < nodes.length; i++) {
+          for (var j = i + 1; j < nodes.length; j++) {
+            var dx = nodes[j].x - nodes[i].x;
+            var dy = nodes[j].y - nodes[i].y;
+            var dist = Math.sqrt(dx*dx + dy*dy) || 1;
+            var force = repulsion / (dist * dist);
+            var fx = (dx / dist) * force;
+            var fy = (dy / dist) * force;
+            nodes[i].vx -= fx;
+            nodes[i].vy -= fy;
+            nodes[j].vx += fx;
+            nodes[j].vy += fy;
+          }
+        }
+        // Attraction along edges
+        edges.forEach(function(e) {
+          var s = nodeMap[e.source], t = nodeMap[e.target];
+          if (!s || !t) return;
+          var dx = t.x - s.x;
+          var dy = t.y - s.y;
           var dist = Math.sqrt(dx*dx + dy*dy) || 1;
-          var force = repulsion / (dist * dist);
+          var force = (dist - targetLen) * attraction;
           var fx = (dx / dist) * force;
           var fy = (dy / dist) * force;
-          nodes[i].vx -= fx;
-          nodes[i].vy -= fy;
-          nodes[j].vx += fx;
-          nodes[j].vy += fy;
-        }
+          s.vx += fx;
+          s.vy += fy;
+          t.vx -= fx;
+          t.vy -= fy;
+        });
+        // Home position pull — keeps tree structure loosely intact
+        nodes.forEach(function(n) {
+          if (n.homeX !== undefined) {
+            n.vx += (n.homeX - n.x) * homeForce;
+            n.vy += (n.homeY - n.y) * homeForce;
+          }
+        });
+        // Apply velocities
+        nodes.forEach(function(n) {
+          if (n === dragNode) return;
+          n.vx *= damping;
+          n.vy *= damping;
+          n.x += n.vx;
+          n.y += n.vy;
+        });
       }
-      // Attraction along edges
-      edges.forEach(function(e) {
-        var s = nodeMap[e.source], t = nodeMap[e.target];
-        if (!s || !t) return;
-        var dx = t.x - s.x;
-        var dy = t.y - s.y;
-        var dist = Math.sqrt(dx*dx + dy*dy) || 1;
-        var force = (dist - targetLen) * attraction;
-        var fx = (dx / dist) * force;
-        var fy = (dy / dist) * force;
-        s.vx += fx;
-        s.vy += fy;
-        t.vx -= fx;
-        t.vy -= fy;
-      });
-      // Home position pull — keeps tree structure loosely intact
-      nodes.forEach(function(n) {
-        if (n.homeX !== undefined) {
-          n.vx += (n.homeX - n.x) * homeForce;
-          n.vy += (n.homeY - n.y) * homeForce;
-        }
-      });
-      // Apply velocities
-      nodes.forEach(function(n) {
-        if (n === dragNode) return;
-        n.vx *= damping;
-        n.vy *= damping;
-        n.x += n.vx;
-        n.y += n.vy;
-      });
       draw();
       requestAnimationFrame(tick);
     }
@@ -175,8 +271,6 @@
 
     var isDark = document.documentElement.classList.contains('dark');
     var edgeColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)';
-    var nodeColor = isDark ? '#60a5fa' : '#2563eb';
-    var nodeHoverColor = isDark ? '#93c5fd' : '#1d4ed8';
     var textColor = isDark ? '#f3f4f6' : '#111827';
     var bgLabel = isDark ? 'rgba(17,17,17,0.8)' : 'rgba(255,255,255,0.85)';
     var tierLineColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
@@ -215,6 +309,7 @@
     edges.forEach(function(e) {
       var s = nodeMap[e.source], t = nodeMap[e.target];
       if (!s || !t) return;
+      if (searchQuery && !matchesSearch(s) && !matchesSearch(t)) return;
       ctx.beginPath();
       ctx.moveTo(s.x, s.y);
       ctx.lineTo(t.x, t.y);
@@ -231,6 +326,7 @@
 
     // Draw nodes
     nodes.forEach(function(n) {
+      var dimmed = (searchQuery && !matchesSearch(n));
       var isHovered = hoveredNode && hoveredNode.id === n.id;
       var isConnected = false;
       if (hoveredNode) {
@@ -242,28 +338,31 @@
         });
       }
 
+      ctx.globalAlpha = dimmed ? 0.15 : 1;
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
       if (isHovered) {
-        ctx.fillStyle = nodeHoverColor;
-        ctx.shadowColor = nodeColor;
+        ctx.fillStyle = nodeColor(n);
+        ctx.shadowColor = nodeColor(n);
         ctx.shadowBlur = 15;
-      } else if (isConnected) {
-        ctx.fillStyle = nodeColor;
-        ctx.shadowBlur = 0;
-      } else if (hoveredNode) {
-        ctx.fillStyle = isDark ? 'rgba(96,165,250,0.25)' : 'rgba(37,99,235,0.2)';
+      } else if (isConnected || !hoveredNode) {
+        ctx.fillStyle = nodeColor(n);
         ctx.shadowBlur = 0;
       } else {
-        ctx.fillStyle = nodeColor;
+        ctx.globalAlpha = dimmed ? 0.15 : 0.25;
+        ctx.fillStyle = nodeColor(n);
         ctx.shadowBlur = 0;
       }
       ctx.fill();
       ctx.shadowBlur = 0;
 
-      // Label
-      var showLabel = !hoveredNode || isHovered || isConnected;
+      // Labels: hovered/connected always; otherwise only prominent nodes
+      // (or everything once zoomed in close).
+      var showLabel = (!dimmed) && (
+        isHovered || isConnected || scale > 1.6 || n.views >= labelMinViews
+      );
       if (showLabel) {
+        ctx.globalAlpha = dimmed ? 0.15 : 1;
         ctx.font = (isHovered ? 'bold ' : '') + '12px ui-sans-serif, system-ui, sans-serif';
         var tw = ctx.measureText(n.title).width;
         ctx.fillStyle = bgLabel;
@@ -273,6 +372,7 @@
         ctx.textBaseline = 'top';
         ctx.fillText(n.title, n.x, n.y + n.radius + 7);
       }
+      ctx.globalAlpha = 1;
     });
 
     ctx.restore();
@@ -317,6 +417,7 @@
     if (node) {
       tooltip.style.display = 'block';
       tooltip.innerHTML = '<strong>' + node.title + '</strong>' +
+        (node.category ? ' <span style="opacity:0.5">· ' + node.category + '</span>' : '') +
         (node.summary ? '<br>' + node.summary : '') +
         '<br><span style="opacity:0.5">' + node.views + ' views — click to open</span>';
       tooltip.style.left = (e.clientX + 12) + 'px';
@@ -343,9 +444,6 @@
   });
 
   canvas.addEventListener('mouseup', function() {
-    if (dragNode && !isDragging) {
-      // It was a click, not a drag
-    }
     dragNode = null;
     isPanning = false;
     canvas.style.cursor = 'grab';

@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.routing import BaseRoute, Match, Mount, NoMatchFound, get_route_path
 
 from .config import settings as cfg
 from .database import async_session, engine
@@ -41,7 +42,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     lifespan=lifespan,
     title="Smartipedia",
-    version="0.3.0",
+    version="0.4.0",
     description=(
         "Smartipedia is the first encyclopedia built for AI agents. "
         "Unlike Wikipedia (requires human accounts) or Grokipedia (closed-source, single-model), "
@@ -79,6 +80,37 @@ templates.env.globals["google_auth_enabled"] = bool(app_settings.google_client_i
 
 # Remote MCP server — https://smartipedia.com/mcp
 app.mount("/mcp", mcp_app)
+
+
+class _MCPExactRoute(BaseRoute):
+    """Dispatch exact /mcp (no trailing slash) straight into the MCP app.
+
+    Starlette's router would otherwise 307-redirect /mcp -> /mcp/, and behind
+    the TLS-terminating proxy that redirect is built as http://, which strict
+    MCP clients refuse to follow. Handling the exact path here avoids the
+    redirect entirely. The /mcp/* mount below keeps serving everything else.
+    """
+
+    def __init__(self, sub_app):
+        self.sub_app = sub_app
+
+    def matches(self, scope):
+        if scope["type"] == "http" and get_route_path(scope) == "/mcp":
+            return Match.FULL, {}
+        return Match.NONE, {}
+
+    async def handle(self, scope, receive, send):
+        scope.update(root_path=scope.get("root_path", "") + "/mcp", path="/", raw_path=b"/")
+        await self.sub_app(scope, receive, send)
+
+    def url_path_for(self, *args, **kwargs):
+        raise NoMatchFound()
+
+
+for _i, _route in enumerate(app.routes):
+    if isinstance(_route, Mount) and getattr(_route, "path", "") == "/mcp":
+        app.routes.insert(_i, _MCPExactRoute(mcp_app))
+        break
 
 
 @app.middleware("http")
@@ -229,10 +261,13 @@ async def sitemap_xml():
     """Auto-generated sitemap — grows with every new topic."""
     from .database import async_session
     from .models import Topic
+    from .services.topics import _visible_clause
     from sqlalchemy import select
 
     async with async_session() as db:
-        result = await db.execute(select(Topic).order_by(Topic.updated_at.desc()))
+        result = await db.execute(
+            select(Topic).where(_visible_clause()).order_by(Topic.updated_at.desc())
+        )
         topics = list(result.scalars().all())
 
     urls = ['<?xml version="1.0" encoding="UTF-8"?>']

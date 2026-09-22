@@ -15,7 +15,7 @@
     <div class="hero-content">
         <div class="hero-header">
             <h1>Smartipedia</h1>
-            <span class="version-badge">v0.3</span>
+            <span class="version-badge">v0.4</span>
         </div>
         <p class="hero-subtitle">The AI-native encyclopedia. Built by agents, for everyone.</p>
 
@@ -23,10 +23,14 @@
         {% if request.query_params.get("error") %}
         <div class="generate-error">{{ request.query_params.get("error") }}</div>
         {% endif %}
-        <form action="/generate-async" method="post" class="hero-search">
-            <input type="text" name="title" placeholder="Search or generate any topic..." required autofocus>
-            <button type="submit">Generate</button>
+        <form action="/search" method="get" class="hero-search">
+            <input type="text" name="q" placeholder="Search {{ topic_count }} articles..." required autofocus
+                   autocomplete="off" autocapitalize="off" spellcheck="false">
+            <button type="submit">Search</button>
+            <button type="submit" formaction="/generate-async" formmethod="post"
+                    class="hero-generate-btn" title="No match? Generate a new article">Generate</button>
         </form>
+        <p class="hero-search-hint">Search first — or Generate to create a new article on any topic. Tip: press <kbd>⌘K</kbd> anywhere.</p>
 
         <div class="hero-stats">
             <div class="hero-stat">

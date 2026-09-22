@@ -9,7 +9,7 @@
 
     <!-- Agent discovery -->
     <meta name="robots" content="index, follow">
-    <meta name="generator" content="Smartipedia v0.3 — open-source AI encyclopedia">
+    <meta name="generator" content="Smartipedia v0.4 — open-source AI encyclopedia">
     <meta name="application-name" content="Smartipedia">
     <meta name="keywords" content="{% block keywords %}AI encyclopedia, AI agent knowledge base, open source encyclopedia, agent-editable wiki, free AI API, knowledge graph, multi-agent collaboration, Wikipedia alternative for agents, Grokipedia alternative, llms.txt{% endblock %}">
     <meta name="author" content="Smartipedia Contributors (AI agents and humans)">
@@ -56,12 +56,84 @@
 
     <link rel="icon" type="image/png" href="/static/logo.png">
     <link rel="apple-touch-icon" href="/static/logo.png">
-    <link rel="stylesheet" href="/static/css/style.css?v=27">
-    <script src="/static/js/smartipedia.js?v=27"></script>
+    {% block extra_head %}{% endblock %}
+    <link rel="stylesheet" href="/static/css/style.css?v=28">
+    <script src="/static/js/smartipedia.js?v=28"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     {% if umami_script %}
-    <script defer src="https://analytics.smartipedia.com/script.js" data-website-id="{{ umami_website_id }}"></script>
+    <!-- Served first-party: Caddy proxies /u/* to the Umami container on :3000.
+         Same-origin means ad blockers that blocklist analytics subdomains don't
+         strip it, and it works without waiting on DNS for the dashboard host. -->
+    <script defer src="/u/script.js" data-website-id="{{ umami_website_id }}" data-host-url="https://smartipedia.com/u"></script>
     {% endif %}
+    <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+    function cssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    function getMermaidConfig() {
+        return {
+            startOnLoad: false,
+            theme: 'base',
+            securityLevel: 'loose',
+            fontFamily: cssVar('--font-sans'),
+            flowchart: {
+                curve: 'linear',
+                htmlLabels: true,
+                nodeSpacing: 44,
+                rankSpacing: 52,
+                padding: 14,
+            },
+            themeVariables: {
+                background: 'transparent',
+                mainBkg: cssVar('--bg-card'),
+                primaryColor: cssVar('--bg-card'),
+                primaryBorderColor: cssVar('--border-hover'),
+                primaryTextColor: cssVar('--text'),
+                secondaryColor: cssVar('--badge-bg'),
+                secondaryBorderColor: cssVar('--border'),
+                secondaryTextColor: cssVar('--text'),
+                tertiaryColor: cssVar('--bg-th'),
+                tertiaryBorderColor: cssVar('--border'),
+                tertiaryTextColor: cssVar('--text'),
+                lineColor: cssVar('--text-muted'),
+                textColor: cssVar('--text'),
+                edgeLabelBackground: cssVar('--bg'),
+                clusterBkg: cssVar('--bg-card'),
+                clusterBorder: cssVar('--border'),
+                noteBkgColor: cssVar('--bg-th'),
+                noteTextColor: cssVar('--text'),
+                noteBorderColor: cssVar('--border'),
+            },
+        };
+    }
+
+    async function renderSmartipediaMermaid() {
+        mermaid.initialize(getMermaidConfig());
+        const codeBlocks = document.querySelectorAll('pre > code.language-mermaid');
+        codeBlocks.forEach(code => {
+            const pre = document.createElement('pre');
+            pre.className = 'mermaid';
+            pre.textContent = code.textContent;
+            pre.dataset.mermaidSource = code.textContent;
+            code.parentElement.replaceWith(pre);
+        });
+        const diagrams = document.querySelectorAll('pre.mermaid');
+        if (!diagrams.length) return;
+        diagrams.forEach(pre => {
+            if (pre.dataset.mermaidSource) {
+                pre.textContent = pre.dataset.mermaidSource;
+            }
+            pre.removeAttribute('data-processed');
+        });
+        await mermaid.run({ nodes: diagrams });
+    }
+
+    document.addEventListener('DOMContentLoaded', renderSmartipediaMermaid);
+    document.addEventListener('smartipedia:theme-change', renderSmartipediaMermaid);
+    </script>
 </head>
 <body>
     <div class="cosmic-bg"></div>
@@ -70,7 +142,7 @@
         <div class="nav-inner">
             <div class="nav-left">
                 <a href="/" class="nav-logo"><img src="/static/logo.png" alt="Smartipedia" class="nav-logo-img">Smartipedia</a>
-                <span class="version-badge">v0.3</span>
+                <span class="version-badge">v0.4</span>
             </div>
             <div class="nav-center">
                 <button id="cmdk-trigger" class="nav-search-btn" title="Search (Cmd+K)">
@@ -103,7 +175,9 @@
                     </div>
                 </div>
                 {% else %}
+                {% if github_auth_enabled or google_auth_enabled %}
                 <a href="/auth/signin" class="nav-btn nav-login-btn">Sign in</a>
+                {% endif %}
                 {% endif %}
             </div>
         </div>
@@ -151,81 +225,9 @@
             <a href="https://github.com/sksareen/smartipedia/blob/main/LICENSE">MIT License</a>
         </div>
     </footer>
-    <!-- Notepad Drawer -->
-    <div id="notepad-drawer" class="notepad-drawer">
-        <div class="notepad-collapsed-bar" id="notepad-collapsed-bar">
-            <a href="/journeys" class="notepad-journeys-link" title="View all journeys" onclick="event.stopPropagation();">
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/></svg>
-                <span>Journeys</span>
-            </a>
-            <button class="notepad-new-journey-btn" id="notepad-new-journey" title="Start new journey" onclick="event.stopPropagation();">+</button>
-            <div class="notepad-bar-left">
-                <div class="notepad-journey-trail" id="notepad-journey-trail"></div>
-            </div>
-            <button class="notepad-toggle-btn" id="notepad-toggle-btn" title="Open notepad (Cmd+J)">
-                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                <span>Notes</span>
-                <kbd class="notepad-kbd">&#8984;J</kbd>
-            </button>
-        </div>
-        <div class="notepad-panel" id="notepad-panel">
-            <div class="notepad-toolbar">
-                <div class="notepad-toolbar-left">
-                    <button class="notepad-fmt-btn" data-cmd="bold" title="Bold (Cmd+B)"><strong>B</strong></button>
-                    <button class="notepad-fmt-btn" data-cmd="italic" title="Italic (Cmd+I)"><em>I</em></button>
-                    <button class="notepad-fmt-btn" data-cmd="underline" title="Underline (Cmd+U)"><u>U</u></button>
-                </div>
-                <div class="notepad-toolbar-right">
-                    <button class="notepad-action-btn" id="notepad-copy-btn" title="Copy notes to clipboard">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                        <span>Copy</span>
-                    </button>
-                    <button class="notepad-action-btn" id="notepad-download-btn" title="Download as .md">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        <span>.md</span>
-                    </button>
-                    <button class="notepad-close-btn" id="notepad-close-btn" title="Close (Esc)">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-                    </button>
-                </div>
-            </div>
-            <div class="notepad-body">
-                <div class="notepad-editor" id="notepad-editor" contenteditable="true" placeholder="Write notes, draft tweets, capture ideas..."></div>
-                <div class="notepad-clippings" id="notepad-clippings">
-                    <div class="notepad-clippings-header">Clippings</div>
-                    <div class="notepad-clippings-list" id="notepad-clippings-list"></div>
-                </div>
-            </div>
-            <!-- AI Chat Panel (toggled via Tab) -->
-            <div class="ai-chat-panel" id="ai-chat-panel" style="display:none;">
-                <div class="ai-chat-header">
-                    <span class="ai-chat-title">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                        Ask AI
-                    </span>
-                    <span class="ai-chat-hint">Tab to switch back to notes</span>
-                    <button class="ai-chat-close" id="ai-chat-close" title="Close chat">&times;</button>
-                </div>
-                <div class="ai-chat-messages" id="ai-chat-messages">
-                    <div class="ai-chat-msg ai-chat-system">Ask me anything about this page or your journey.</div>
-                </div>
-                <div class="ai-chat-input-row">
-                    <input type="text" class="ai-chat-input" id="ai-chat-input" placeholder="Ask about this page..." autocomplete="off" />
-                    <button class="ai-chat-send" id="ai-chat-send" title="Send">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Notepad toast -->
-    <div class="notepad-toast" id="notepad-toast"></div>
-
-    <!-- Mobile floating toggle for drawer -->
-    <button class="mobile-drawer-fab" id="mobile-drawer-fab" title="Open notepad">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-    </button>
+    <!-- NOTE: the Journeys/Notes drawer lived here. Deactivated 2026-09 — the
+         markup, FAB and toast are removed; journeys still track to localStorage
+         and /journeys keeps working. See git history to restore. -->
 
     <!-- Generating overlay -->
     <div class="generating-overlay" id="generating-overlay">

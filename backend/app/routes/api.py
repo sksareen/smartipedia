@@ -83,7 +83,7 @@ class SectionEditRequest(BaseModel):
 
 
 class ReviewRequest(BaseModel):
-    status: str = Field(description="One of: generated, reviewed, verified, disputed, outdated")
+    status: str = Field(description="One of: generated, reviewed, verified, disputed, outdated, quarantined")
     reviewer: str = Field(description="Your agent/user name")
     issues: list[str] | None = Field(default=None, description="List of issues (clears previous if provided)")
 
@@ -261,9 +261,9 @@ async def api_edit_section(slug: str, body: SectionEditRequest, db: AsyncSession
 
 @router.post("/topics/{slug}/review", response_model=TopicResponse, tags=["quality"], summary="Review a topic")
 async def api_review_topic(slug: str, body: ReviewRequest, db: AsyncSession = Depends(get_db)):
-    valid_statuses = {"generated", "reviewed", "verified", "disputed", "outdated"}
+    valid_statuses = {"generated", "reviewed", "verified", "disputed", "outdated", "quarantined"}
     if body.status not in valid_statuses:
-        raise HTTPException(status_code=400, detail=f"status must be one of: {', '.join(valid_statuses)}")
+        raise HTTPException(status_code=400, detail=f"status must be one of: {', '.join(sorted(valid_statuses))}")
     topic = await get_topic_by_slug(db, slug)
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
@@ -392,12 +392,24 @@ async def api_analytics_traffic_referrers(
 # ==================== GRAPH + HEALTH ====================
 
 @router.get("/graph", tags=["graph"], summary="Knowledge graph data")
-async def api_graph(db: AsyncSession = Depends(get_db)):
+async def api_graph(limit: int | None = None, db: AsyncSession = Depends(get_db)):
+    """Knowledge graph nodes + edges. Pass limit=N for the top N topics by
+    human readership (plus the edges between them) instead of the full dump.
+    Quarantined topics are always excluded."""
     from sqlalchemy import select as sel
+    from sqlalchemy import func as sqlfunc
     from ..models import Topic, TopicLink
+    from ..services.topics import _visible_clause
 
-    topics_result = await db.execute(sel(Topic))
-    topics = list(topics_result.scalars().all())
+    topics_stmt = sel(Topic).where(_visible_clause())
+    if limit is not None and limit > 0:
+        topics_stmt = topics_stmt.order_by(
+            sqlfunc.coalesce(Topic.human_view_count, 0).desc(), Topic.view_count.desc()
+        ).limit(min(limit, 5000))
+    topics = list((await db.execute(topics_stmt)).scalars().all())
+    corpus_total = (await db.execute(
+        sel(sqlfunc.count(Topic.id)).where(_visible_clause())
+    )).scalar_one()
     links_result = await db.execute(sel(TopicLink))
     links = list(links_result.scalars().all())
     slug_by_id = {str(t.id): t.slug for t in topics}
@@ -408,7 +420,24 @@ async def api_graph(db: AsyncSession = Depends(get_db)):
               "type": l.relationship_type}
              for l in links if str(l.source_id) in slug_by_id and str(l.target_id) in slug_by_id]
 
-    return {"nodes": nodes, "edges": edges}
+    return {"nodes": nodes, "edges": edges, "total": corpus_total, "limited": limit is not None and limit > 0}
+
+
+@router.get("/link-index", tags=["discovery"], summary="Compact cross-link index")
+async def api_link_index(db: AsyncSession = Depends(get_db)):
+    """Every linkworthy [[slug, title, summary]] triple for client-side keyword linking.
+
+    Compact and cacheable — browsers keep a copy in localStorage and re-fetch
+    only when `version` changes.
+    """
+    from fastapi.responses import JSONResponse
+
+    from ..services.topics import get_link_index
+    links, version = await get_link_index(db)
+    return JSONResponse(
+        {"version": version, "links": links},
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @router.get("/rate-limit", tags=["system"], summary="Check generation rate limit")
@@ -477,4 +506,4 @@ async def chat(req: ChatRequest):
 
 @router.get("/health", tags=["system"], summary="Health check")
 async def health():
-    return {"status": "ok", "service": "smartipedia", "version": "0.3.0"}
+    return {"status": "ok", "service": "smartipedia", "version": "0.4.0"}

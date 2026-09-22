@@ -36,10 +36,28 @@ _BLOCKED_PATTERNS: list[re.Pattern] = [
 # Single-word or short-phrase exact blocks (lowercased)
 _BLOCKED_EXACT: set[str] = set()
 
+# SEO-spam campaigns: free generation attracts bulk marketing content ("How to
+# Audit a virtual card for subscriptions..."). Plain topics ("Virtual card",
+# "Link building", "SEO") stay allowed — only the promotional how-to
+# conjunctions and outright spam terms are blocked.
+_SPAM_PATTERNS: list[re.Pattern] = [
+    re.compile(r"\bhow\b.*\bvirtual[-\s]?cards?\b", re.I),
+    re.compile(r"\bhow\b.*\blink[-\s]?building\b", re.I),
+    re.compile(r"\b(ad[-\s]?spend|vcc|cracked keys?)\b", re.I),
+    re.compile(r"\blink[-\s]?building software\b", re.I),
+    re.compile(r"\bseo\b.*\b(trial|unlimited|software|tool)s?\b.*\b(how|guide|choose)\b", re.I),
+]
+
 
 class ModerationError(Exception):
     """Raised when content is rejected by moderation."""
     pass
+
+
+def is_spam_title(title: str) -> bool:
+    """Whether a title matches known SEO-spam campaign patterns."""
+    cleaned = (title or "").strip().lower()
+    return any(p.search(cleaned) for p in _SPAM_PATTERNS)
 
 
 def check_title(title: str) -> None:
@@ -66,6 +84,13 @@ def check_title(title: str) -> None:
                 "This topic cannot be generated. Smartipedia does not create content "
                 "related to violence, illegal activities, explicit material, or hate speech."
             )
+
+    # Spam match — bulk SEO / promotional how-tos
+    if is_spam_title(title):
+        raise ModerationError(
+            "This topic looks like promotional or SEO content, which Smartipedia "
+            "doesn't generate. Try a neutral encyclopedic title instead."
+        )
 
     # Heuristic: title is suspiciously long (likely a prompt injection attempt)
     if len(title) > 300:
