@@ -57,8 +57,8 @@
     <link rel="icon" type="image/png" href="/static/logo.png">
     <link rel="apple-touch-icon" href="/static/logo.png">
     {% block extra_head %}{% endblock %}
-    <link rel="stylesheet" href="/static/css/style.css?v=28">
-    <script src="/static/js/smartipedia.js?v=28"></script>
+    <link rel="stylesheet" href="/static/css/style.css?v=29">
+    <script src="/static/js/smartipedia.js?v=29"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     {% if umami_script %}
     <!-- Served first-party: Caddy proxies /u/* to the Umami container on :3000.
@@ -135,7 +135,7 @@
     document.addEventListener('smartipedia:theme-change', renderSmartipediaMermaid);
     </script>
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
     <div class="cosmic-bg"></div>
 
     <nav class="nav">

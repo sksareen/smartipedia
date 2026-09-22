@@ -391,27 +391,98 @@ async def api_analytics_traffic_referrers(
 
 # ==================== GRAPH + HEALTH ====================
 
+def _prefer_connected(nodes: list[dict], edges: list[dict], limit: int) -> tuple[list[dict], list[dict]]:
+    """Grow a connected subgraph from the highest-degree hubs.
+
+    A views-only slice of the corpus is mostly orphans, which makes /graph
+    look like confetti. Prefer nodes that actually link to each other.
+    """
+    if limit <= 0 or len(nodes) <= limit:
+        return nodes, edges
+    by_id = {n["id"]: n for n in nodes}
+    adj: dict[str, set[str]] = {n["id"]: set() for n in nodes}
+    for e in edges:
+        if e["source"] in adj and e["target"] in adj:
+            adj[e["source"]].add(e["target"])
+            adj[e["target"]].add(e["source"])
+    ranked = sorted(
+        nodes,
+        key=lambda n: (len(adj[n["id"]]), n.get("views") or 0),
+        reverse=True,
+    )
+    seeds: list[dict] = []
+    seen_cats: set[str] = set()
+    for n in ranked:
+        cat = n.get("category") or ""
+        if cat in seen_cats:
+            continue
+        if not adj[n["id"]]:
+            continue
+        seeds.append(n)
+        seen_cats.add(cat)
+    for n in ranked[:12]:
+        if n not in seeds and adj[n["id"]]:
+            seeds.append(n)
+    chosen: dict[str, dict] = {}
+    cat_count: dict[str, int] = {}
+    max_per_cat = max(12, limit // 5)
+
+    def can_take(n: dict, force: bool = False) -> bool:
+        cat = n.get("category") or ""
+        return force or cat_count.get(cat, 0) < max_per_cat
+
+    def take(n: dict) -> None:
+        chosen[n["id"]] = n
+        cat = n.get("category") or ""
+        cat_count[cat] = cat_count.get(cat, 0) + 1
+
+    budget = max(8, limit // max(len(seeds), 1))
+    for seed in seeds:
+        if len(chosen) >= limit:
+            break
+        added = 0
+        queue = [seed["id"]]
+        if seed["id"] not in chosen and can_take(seed, force=True):
+            take(seed)
+            added += 1
+        while queue and len(chosen) < limit and added < budget:
+            cur = queue.pop(0)
+            nbrs = sorted(adj[cur], key=lambda i: len(adj.get(i, ())), reverse=True)
+            for nb in nbrs:
+                if nb in chosen or nb not in by_id:
+                    continue
+                node = by_id[nb]
+                if not can_take(node):
+                    continue
+                take(node)
+                queue.append(nb)
+                added += 1
+                if len(chosen) >= limit or added >= budget:
+                    break
+    for n in ranked:
+        if len(chosen) >= limit:
+            break
+        if n["id"] not in chosen and adj[n["id"]] and can_take(n):
+            take(n)
+    keep = set(chosen)
+    return list(chosen.values()), [
+        e for e in edges if e["source"] in keep and e["target"] in keep
+    ]
+
+
 @router.get("/graph", tags=["graph"], summary="Knowledge graph data")
 async def api_graph(limit: int | None = None, db: AsyncSession = Depends(get_db)):
-    """Knowledge graph nodes + edges. Pass limit=N for the top N topics by
-    human readership (plus the edges between them) instead of the full dump.
+    """Knowledge graph nodes + edges. Pass limit=N for a connected slice of
+    the corpus (hubs + their neighbors) instead of the full dump.
     Quarantined topics are always excluded."""
     from sqlalchemy import select as sel
     from sqlalchemy import func as sqlfunc
     from ..models import Topic, TopicLink
     from ..services.topics import _visible_clause
 
-    topics_stmt = sel(Topic).where(_visible_clause())
-    if limit is not None and limit > 0:
-        topics_stmt = topics_stmt.order_by(
-            sqlfunc.coalesce(Topic.human_view_count, 0).desc(), Topic.view_count.desc()
-        ).limit(min(limit, 5000))
-    topics = list((await db.execute(topics_stmt)).scalars().all())
-    corpus_total = (await db.execute(
-        sel(sqlfunc.count(Topic.id)).where(_visible_clause())
-    )).scalar_one()
-    links_result = await db.execute(sel(TopicLink))
-    links = list(links_result.scalars().all())
+    topics = list((await db.execute(sel(Topic).where(_visible_clause()))).scalars().all())
+    corpus_total = len(topics)
+    links = list((await db.execute(sel(TopicLink))).scalars().all())
     slug_by_id = {str(t.id): t.slug for t in topics}
 
     nodes = [{"id": t.slug, "title": t.title, "summary": t.summary or "",
@@ -420,7 +491,26 @@ async def api_graph(limit: int | None = None, db: AsyncSession = Depends(get_db)
               "type": l.relationship_type}
              for l in links if str(l.source_id) in slug_by_id and str(l.target_id) in slug_by_id]
 
-    return {"nodes": nodes, "edges": edges, "total": corpus_total, "limited": limit is not None and limit > 0}
+    # Tiny local corpora (empty or leftover seed data) — use production so
+    # /graph is usable when developing against a throwaway database.
+    if corpus_total < 50:
+        import httpx
+
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                remote = await client.get("https://smartipedia.com/api/v1/graph")
+                remote.raise_for_status()
+                data = remote.json()
+                nodes, edges = data.get("nodes") or [], data.get("edges") or []
+                corpus_total = data.get("total") or len(nodes)
+        except Exception:
+            pass
+
+    limited = bool(limit and limit > 0 and len(nodes) > limit)
+    if limited:
+        nodes, edges = _prefer_connected(nodes, edges, min(limit, 5000))
+
+    return {"nodes": nodes, "edges": edges, "total": corpus_total, "limited": limited}
 
 
 @router.get("/link-index", tags=["discovery"], summary="Compact cross-link index")

@@ -41,10 +41,17 @@ _BLOCKED_EXACT: set[str] = set()
 # "Link building", "SEO") stay allowed — only the promotional how-to
 # conjunctions and outright spam terms are blocked.
 _SPAM_PATTERNS: list[re.Pattern] = [
-    re.compile(r"\bhow\b.*\bvirtual[-\s]?cards?\b", re.I),
+    re.compile(r"\bhow\b.*\bvirtual([-\s]?credit)?[-\s]?cards?\b", re.I),
     re.compile(r"\bhow\b.*\blink[-\s]?building\b", re.I),
     re.compile(r"\b(ad[-\s]?spend|vcc|cracked keys?)\b", re.I),
-    re.compile(r"\blink[-\s]?building software\b", re.I),
+    re.compile(r"\blink[-\s]?building (software|tool|playbook|platform|app)\b", re.I),
+    re.compile(r"\breloadable\b.*\b(virtual|cards?|visa)\b", re.I),
+    re.compile(r"\bvirtual[-\s]?card issuance\b", re.I),
+    re.compile(r"\bvirtual visa\b.*\bcards?\b", re.I),
+    re.compile(r"\bno[-\s]?kyc\b", re.I),
+    re.compile(r"\bautomated seo backlinks\b", re.I),
+    re.compile(r"\bhow\b.*\bindexnow\b", re.I),
+    re.compile(r"\bvirtual[-\s]?credit[-\s]?cards?\b.*\b(billing|probe|cascade|isolation)\b", re.I),
     re.compile(r"\bseo\b.*\b(trial|unlimited|software|tool)s?\b.*\b(how|guide|choose)\b", re.I),
 ]
 

@@ -1,0 +1,13 @@
+.git
+.venv
+.ruff_cache
+.pytest_cache
+.mypy_cache
+.DS_Store
+__pycache__
+*.pyc
+.env
+.env.*
+PLAN_visuals_prompt_upgrade.md
+*.md
+!README.md
