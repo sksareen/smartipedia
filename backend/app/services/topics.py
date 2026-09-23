@@ -11,8 +11,16 @@ from ..config import settings
 from ..database import async_session
 from ..models import GenerationLog, SearchLog, Topic, TopicLink, TopicRevision
 from .llm import generate_embedding, generate_topic
-from .moderation import ModerationError, check_title
+from .moderation import check_title
 from .search import web_search
+
+
+def clean_editor_name(raw: str | None, default: str = "anonymous") -> str:
+    """A display name for revision credit. Empty or the old hardcoded 'user' falls back."""
+    name = re.sub(r"[\x00-\x1f\x7f]", "", (raw or "").strip())[:64].strip()
+    if not name or name.lower() in {"user", "anonymous"}:
+        return default
+    return name
 
 
 # Topics whose quality.status is "quarantined" stay directly viewable (no dead
@@ -98,6 +106,7 @@ async def check_daily_limit(db: AsyncSession) -> tuple[bool, int]:
 async def get_or_create_topic(
     db: AsyncSession,
     title: str,
+    editor: str = "system",
 ) -> tuple[Topic, bool]:
     """Get existing topic or generate a new one. Returns (topic, was_created).
 
@@ -152,7 +161,7 @@ async def get_or_create_topic(
         content_md=generated["content_md"],
         sources=search_results,
         edit_summary="Initial generation",
-        editor="system",
+        editor=clean_editor_name(editor, default="system"),
     )
     db.add(revision)
     await db.flush()

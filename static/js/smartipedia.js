@@ -70,6 +70,92 @@
       });
     }
 
+    // ==================== EDITOR NAME ====================
+    var EDITOR_KEY = 'smartipedia-editor';
+    var EDITOR_HINT_KEY = 'smartipedia-editor-hint-dismissed';
+    var nameWrap = document.getElementById('nav-name');
+    var nameBtn = document.getElementById('nav-name-btn');
+    var namePop = document.getElementById('nav-name-pop');
+    var nameInput = document.getElementById('nav-name-input');
+    var nameDismiss = document.getElementById('nav-name-dismiss');
+
+    function editorName() {
+      var name = (localStorage.getItem(EDITOR_KEY) || '').trim().slice(0, 64);
+      if (!name || name.toLowerCase() === 'anonymous' || name.toLowerCase() === 'user') return 'anonymous';
+      return name;
+    }
+
+    function stampEditor(form) {
+      var field = form.querySelector('input[name="editor"]');
+      if (!field) {
+        field = document.createElement('input');
+        field.type = 'hidden';
+        field.name = 'editor';
+        form.appendChild(field);
+      }
+      field.value = editorName();
+    }
+
+    function paintEditorName() {
+      if (!nameWrap || !nameBtn) return;
+      var name = editorName();
+      var anon = name === 'anonymous';
+      nameBtn.textContent = name;
+      nameBtn.classList.toggle('is-named', !anon);
+      nameWrap.classList.toggle('is-anon', anon);
+      if (sessionStorage.getItem(EDITOR_HINT_KEY)) nameWrap.classList.add('hint-dismissed');
+    }
+
+    function closeNamePop() {
+      if (!nameWrap || !namePop) return;
+      nameWrap.classList.remove('is-open');
+      namePop.hidden = true;
+    }
+
+    paintEditorName();
+
+    if (nameBtn && namePop && nameInput) {
+      nameBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = namePop.hidden;
+        if (open) {
+          namePop.hidden = false;
+          nameWrap.classList.add('is-open');
+          nameInput.value = editorName() === 'anonymous' ? '' : editorName();
+          nameInput.focus();
+        } else {
+          closeNamePop();
+        }
+      });
+      namePop.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var name = nameInput.value.trim().slice(0, 64);
+        if (!name) localStorage.removeItem(EDITOR_KEY);
+        else localStorage.setItem(EDITOR_KEY, name);
+        paintEditorName();
+        closeNamePop();
+      });
+      namePop.addEventListener('click', function (e) { e.stopPropagation(); });
+      document.addEventListener('click', closeNamePop);
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeNamePop();
+      });
+    }
+    if (nameDismiss && nameWrap) {
+      nameDismiss.addEventListener('click', function (e) {
+        e.stopPropagation();
+        sessionStorage.setItem(EDITOR_HINT_KEY, '1');
+        nameWrap.classList.add('hint-dismissed');
+      });
+    }
+
+    document.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (!(form instanceof HTMLFormElement)) return;
+      var action = ((e.submitter && e.submitter.getAttribute('formaction')) || form.getAttribute('action') || '');
+      if (action.indexOf('/generate') !== -1 || /\/edit$/.test(action)) stampEditor(form);
+    }, true);
+
     // ==================== USER MENU ====================
     var avatarBtn = document.getElementById('nav-avatar-btn');
     var userDropdown = document.getElementById('nav-user-dropdown');
@@ -163,6 +249,7 @@
           inp.name = 'title';
           inp.value = q;
           form.appendChild(inp);
+          stampEditor(form);
           document.body.appendChild(form);
           form.submit();
         }
@@ -577,6 +664,7 @@
                 inp.name = 'title';
                 inp.value = title;
                 form.appendChild(inp);
+                stampEditor(form);
                 document.body.appendChild(form);
                 form.submit();
               });

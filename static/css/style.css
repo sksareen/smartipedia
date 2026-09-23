@@ -281,6 +281,92 @@ body {
 .nav-login-btn:hover { border-color: var(--border-hover) !important; }
 .nav-login-btn svg { flex-shrink: 0; }
 
+.nav-name {
+    position: relative;
+}
+.nav-name-btn {
+    max-width: 8.5rem;
+    height: 32px;
+    padding: 0 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.nav-name-btn.is-named { color: var(--text); }
+.nav-name-btn:hover { border-color: var(--border-hover); }
+.nav-name-pop[hidden] { display: none !important; }
+.nav-name-pop {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    display: flex;
+    gap: 0.35rem;
+    padding: 0.45rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.1);
+    z-index: 120;
+}
+.nav-name-pop input {
+    width: 9.5rem;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--bg-input);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+}
+.nav-name-pop input:focus { outline: none; border-color: var(--border-hover); }
+.nav-name-pop button {
+    padding: 0 0.65rem;
+    border: 0;
+    border-radius: 7px;
+    background: var(--text);
+    color: var(--bg);
+    font: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+.nav-name-hint {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 14rem;
+    margin: 0;
+    padding: 0.45rem 1.4rem 0.45rem 0.65rem;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.08);
+    font-size: 0.75rem;
+    line-height: 1.35;
+    z-index: 110;
+}
+.nav-name.is-anon:not(.is-open):not(.hint-dismissed) .nav-name-hint,
+.nav-name.is-anon:not(.is-open):hover .nav-name-hint { display: block; }
+.nav-name-hint button {
+    position: absolute;
+    top: 0.15rem;
+    right: 0.3rem;
+    border: 0;
+    background: transparent;
+    color: var(--text-light);
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
 /* Sign-in page */
 .signin-page {
     max-width: 400px;

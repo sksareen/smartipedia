@@ -10,6 +10,7 @@ from ..database import get_db
 from ..services.moderation import ModerationError, check_title
 from ..services.traffic import get_referrers, get_top_clients, get_traffic_overview
 from ..services.topics import (
+    clean_editor_name,
     get_analytics_overview,
     get_discover_facets,
     get_missing_topics,
@@ -192,9 +193,9 @@ async def generate_page(request: Request, db: AsyncSession = Depends(get_db)):
     title = form.get("title", "").strip()
     if not title:
         return RedirectResponse("/", status_code=303)
-    slug = slugify(title, max_length=512)
     try:
-        topic, created = await get_or_create_topic(db, title)
+        editor = clean_editor_name(form.get("editor"), default="anonymous")
+        topic, created = await get_or_create_topic(db, title, editor=editor)
     except ModerationError as e:
         error_msg = str(e)
     except Exception as e:
@@ -248,18 +249,19 @@ async def generate_async(request: Request, db: AsyncSession = Depends(get_db)):
 
     # Start generation in background
     import asyncio
-    asyncio.create_task(_generate_in_background(title))
+    editor = clean_editor_name(form.get("editor"), default="anonymous")
+    asyncio.create_task(_generate_in_background(title, editor))
 
     from urllib.parse import quote
     return RedirectResponse(f"/topic/{slug}/generating?title={quote(title)}", status_code=303)
 
 
-async def _generate_in_background(title: str):
+async def _generate_in_background(title: str, editor: str = "anonymous"):
     """Generate topic in a background task."""
     from ..database import async_session
     async with async_session() as db:
         try:
-            await get_or_create_topic(db, title)
+            await get_or_create_topic(db, title, editor=editor)
         except Exception as e:
             print(f"Background generation failed for '{title}': {e}")
 
@@ -283,6 +285,6 @@ async def save_topic_edit(request: Request, slug: str, db: AsyncSession = Depend
     form = await request.form()
     content_md = form.get("content_md", "")
     edit_summary = form.get("edit_summary", "")
-    editor = form.get("editor", "user")
+    editor = clean_editor_name(form.get("editor"), default="anonymous")
     await update_topic(db, topic, content_md, edit_summary, editor)
     return RedirectResponse(f"/topic/{topic.slug}", status_code=303)
