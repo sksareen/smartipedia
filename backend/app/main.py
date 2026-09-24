@@ -16,6 +16,7 @@ from .middleware import TrafficLoggerMiddleware, traffic_flusher
 from .models import Base
 from .mcp_server import build_http_app
 from .routes import api, auth, pages
+from .services.geo import ensure_geoip_db
 
 # Streamable HTTP transport for the remote MCP server. Stateless so it works
 # behind multiple uvicorn workers — there is no session state to pin a client to.
@@ -43,6 +44,7 @@ async def lifespan(app: FastAPI):
         await conn.execute(text(
             "ALTER TABLE request_logs ADD COLUMN IF NOT EXISTS country VARCHAR(2)"
         ))
+    ensure_geoip_db()
     # Starlette does not run a mounted sub-app's lifespan, so the MCP session
     # manager has to be started here or every /mcp request fails.
     async with mcp_app.router.lifespan_context(mcp_app), traffic_flusher():

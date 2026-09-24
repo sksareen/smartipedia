@@ -40,6 +40,11 @@ _DB_CANDIDATES = (
     str(Path(__file__).resolve().parents[3] / "data" / "GeoLite2-Country.mmdb"),
 )
 
+_GEOIP_URL = (
+    "https://github.com/P3TERX/GeoLite.mmdb/releases/latest/download/"
+    "GeoLite2-Country.mmdb"
+)
+
 _reader = None
 _reader_failed = False
 
@@ -114,6 +119,24 @@ def country_from_headers(headers) -> str | None:
         found = normalize_country(getter(name))
         if found:
             return found
+    return None
+
+
+def ensure_geoip_db() -> Path | None:
+    """Return the MMDB path, downloading once if the image wasn't baked with it."""
+    for candidate in _DB_CANDIDATES:
+        if candidate and Path(candidate).is_file():
+            return Path(candidate)
+    dest = Path(os.environ.get("GEOIP_DB_PATH") or "/app/data/GeoLite2-Country.mmdb")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        import urllib.request
+        log.info("downloading GeoIP country database to %s", dest)
+        urllib.request.urlretrieve(_GEOIP_URL, dest)
+        if dest.is_file() and dest.stat().st_size > 1000:
+            return dest
+    except Exception:
+        log.exception("GeoIP country database download failed")
     return None
 
 
