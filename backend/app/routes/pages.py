@@ -12,6 +12,7 @@ from ..services.traffic import get_referrers, get_top_clients, get_traffic_overv
 from ..services.topics import (
     clean_editor_name,
     get_analytics_overview,
+    get_article_countries,
     get_discover_facets,
     get_missing_topics,
     get_or_create_topic,
@@ -123,6 +124,7 @@ async def stats_page(request: Request, db: AsyncSession = Depends(get_db)):
     traffic = await get_traffic_overview(db, days=7)
     top_clients = await get_top_clients(db, days=7, limit=12)
     referrers = await get_referrers(db, days=30, limit=8)
+    article_countries = await get_article_countries(db)
     return request.app.state.templates.TemplateResponse(
         "pages/stats.html",
         {
@@ -136,6 +138,7 @@ async def stats_page(request: Request, db: AsyncSession = Depends(get_db)):
             "traffic": traffic,
             "top_clients": top_clients,
             "referrers": referrers,
+            "article_countries": article_countries,
         },
     )
 

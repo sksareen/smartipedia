@@ -23,6 +23,7 @@ from starlette.datastructures import Headers
 
 from .database import async_session
 from .models import RequestLog
+from .services.geo import Origin, country_for_request, reset_origin, set_origin
 from .services.traffic import classify, hash_ip, surface_for
 
 log = logging.getLogger(__name__)
@@ -66,12 +67,24 @@ class TrafficLoggerMiddleware:
         headers = Headers(scope=scope)
         user_agent = headers.get("user-agent")
         client_type, ua_family = classify(user_agent)
+        client_ip = _client_ip(scope, headers)
+        country = country_for_request(headers, client_ip)
+        surface = surface_for(path)
 
         # Route handlers read request.state.client_type to decide whether a hit
-        # counts as a human view.
+        # counts as a human view. Country is also stashed here and in a
+        # contextvar so MCP tools / background generation can attribute a write
+        # without ever seeing the IP.
         scope.setdefault("state", {})
         scope["state"]["client_type"] = client_type
         scope["state"]["ua_family"] = ua_family
+        scope["state"]["country"] = country
+        origin_token = set_origin(Origin(
+            country=country,
+            client_type=client_type,
+            ua_family=ua_family,
+            surface=surface,
+        ))
 
         status_code = 500
 
@@ -85,15 +98,17 @@ class TrafficLoggerMiddleware:
         try:
             await self.app(scope, receive, send_wrapper)
         finally:
+            reset_origin(origin_token)
             _buffer.append({
                 "path": _truncate(path, 512),
                 "method": scope.get("method", "GET")[:8],
                 "status_code": status_code,
-                "surface": surface_for(path),
+                "surface": surface,
                 "client_type": client_type,
                 "ua_family": _truncate(ua_family, 64),
                 "user_agent": _truncate(user_agent, 512),
-                "ip_hash": hash_ip(_client_ip(scope, headers)),
+                "ip_hash": hash_ip(client_ip),
+                "country": country,
                 "referrer": _truncate(headers.get("referer"), 512),
                 "duration_ms": int((time.perf_counter() - started) * 1000),
             })

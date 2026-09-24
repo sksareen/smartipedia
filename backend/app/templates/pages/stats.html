@@ -82,6 +82,9 @@
                 {% for e in recent_edits %}
                 <div class="activity-item">
                     <span class="activity-editor">{{ e.editor }}</span>
+                    {% if e.country %}
+                    <span class="activity-origin" title="{{ e.country_name }}">{{ e.country_flag }} {{ e.country_name }}</span>
+                    {% endif %}
                     <span class="activity-summary">{{ e.edit_summary or 'edited' }}</span>
                     <a href="/topic/{{ e.topic_slug }}" class="activity-topic">{{ e.topic_title }}</a>
                     <span class="activity-time">{{ e.time_ago }}</span>
@@ -90,6 +93,27 @@
             </div>
             {% else %}
             <p class="stats-empty">No activity yet</p>
+            {% endif %}
+        </section>
+
+        <!-- Where articles come from -->
+        <section class="stats-section">
+            <h2>Where Articles Come From</h2>
+            <p class="stats-note">Country of the requester, recorded at write time. IPs are never stored.</p>
+            {% if article_countries %}
+            <table class="stats-table">
+                <thead><tr><th>Country</th><th>Articles</th></tr></thead>
+                <tbody>
+                {% for c in article_countries %}
+                <tr>
+                    <td class="stats-editor">{{ c.country_flag }} {{ c.country_name }}</td>
+                    <td class="stats-count">{{ c.count }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="stats-empty">No country data yet — new articles will show up here.</p>
             {% endif %}
         </section>
 

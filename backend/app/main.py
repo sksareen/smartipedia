@@ -33,6 +33,16 @@ async def lifespan(app: FastAPI):
         await conn.execute(text(
             "ALTER TABLE topics ADD COLUMN IF NOT EXISTS human_view_count INTEGER DEFAULT 0"
         ))
+        # Country of the requester only — the IP itself is never stored.
+        await conn.execute(text(
+            "ALTER TABLE topic_revisions ADD COLUMN IF NOT EXISTS country VARCHAR(2)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE generation_logs ADD COLUMN IF NOT EXISTS country VARCHAR(2)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE request_logs ADD COLUMN IF NOT EXISTS country VARCHAR(2)"
+        ))
     # Starlette does not run a mounted sub-app's lifespan, so the MCP session
     # manager has to be started here or every /mcp request fails.
     async with mcp_app.router.lifespan_context(mcp_app), traffic_flusher():

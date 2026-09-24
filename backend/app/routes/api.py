@@ -104,6 +104,7 @@ class RevisionResponse(BaseModel):
     id: str
     edit_summary: str | None
     editor: str | None
+    country: str | None = None
     created_at: str
 
 
@@ -291,6 +292,7 @@ async def api_topic_history(slug: str, db: AsyncSession = Depends(get_db)):
     return [
         RevisionResponse(
             id=str(r.id), edit_summary=r.edit_summary, editor=r.editor,
+            country=r.country,
             created_at=r.created_at.isoformat() if r.created_at else "",
         )
         for r in revisions

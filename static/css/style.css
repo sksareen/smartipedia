@@ -2089,6 +2089,11 @@ body.graph-mode .container {
     flex-wrap: wrap;
 }
 .activity-editor { font-weight: 500; }
+.activity-origin {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
 .activity-summary { color: var(--text-muted); }
 .activity-topic { color: var(--link-color); text-decoration: none; }
 .activity-topic:hover { text-decoration: underline; }

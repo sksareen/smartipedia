@@ -54,6 +54,7 @@ class TopicRevision(Base):
     sources = Column(JSONB, default=list)
     edit_summary = Column(String(512))
     editor = Column(String(128), default="system")  # "system", "user", or agent identifier
+    country = Column(String(2))  # ISO country of the requester; IP is never stored
     created_at = Column(DateTime, server_default=func.now())
 
     topic = relationship("Topic", back_populates="revisions")
@@ -109,6 +110,7 @@ class GenerationLog(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     topic_slug = Column(String(512), nullable=False)
     model_used = Column(String(128))
+    country = Column(String(2))  # ISO country of the requester; IP is never stored
     created_at = Column(DateTime, server_default=func.now())
 
 
@@ -130,6 +132,7 @@ class RequestLog(Base):
     ua_family = Column(String(64), index=True)  # Googlebot, GPTBot, Chrome, ...
     user_agent = Column(String(512))
     ip_hash = Column(String(32), index=True)  # salted, non-reversible
+    country = Column(String(2), index=True)  # ISO country; IP is never stored
     referrer = Column(String(512))
     duration_ms = Column(Integer)
     created_at = Column(DateTime, server_default=func.now(), index=True)

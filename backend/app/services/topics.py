@@ -10,9 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..database import async_session
 from ..models import GenerationLog, SearchLog, Topic, TopicLink, TopicRevision
+from .geo import country_flag, country_name, current_origin, normalize_country
 from .llm import generate_embedding, generate_topic
 from .moderation import check_title
 from .search import web_search
+
+
+def _request_country(explicit: str | None = None) -> str | None:
+    """Country for this write: explicit arg, else the request contextvar."""
+    return normalize_country(explicit) or current_origin().country
 
 
 def clean_editor_name(raw: str | None, default: str = "anonymous") -> str:
@@ -155,6 +161,8 @@ async def get_or_create_topic(
     )
     db.add(topic)
 
+    country = _request_country()
+
     # Save initial revision
     revision = TopicRevision(
         topic=topic,
@@ -162,12 +170,13 @@ async def get_or_create_topic(
         sources=search_results,
         edit_summary="Initial generation",
         editor=clean_editor_name(editor, default="system"),
+        country=country,
     )
     db.add(revision)
     await db.flush()
 
     # Log the generation for rate limiting
-    db.add(GenerationLog(topic_slug=slug, model_used=generated["model"]))
+    db.add(GenerationLog(topic_slug=slug, model_used=generated["model"], country=country))
 
     # Create placeholder links for related topics
     for related_title in generated["related_topics"]:
@@ -234,6 +243,7 @@ async def update_topic(
         sources=topic.sources,
         edit_summary=edit_summary,
         editor=editor,
+        country=_request_country(),
     )
     db.add(revision)
 
@@ -538,8 +548,41 @@ async def get_recent_edits(db: AsyncSession, limit: int = 20) -> list[dict]:
             "topic_slug": row[1],
             "topic_title": row[2],
             "time_ago": time_ago,
+            "country": rev.country,
+            "country_name": country_name(rev.country),
+            "country_flag": country_flag(rev.country),
         })
     return edits
+
+
+async def get_article_countries(db: AsyncSession, limit: int = 20) -> list[dict]:
+    """Where new articles (initial generations) have come from.
+
+    Older revisions predate this column and are omitted — they have no country.
+    """
+    result = await db.execute(
+        select(
+            TopicRevision.country,
+            sqlfunc.count(TopicRevision.id).label("count"),
+        )
+        .where(
+            TopicRevision.country.isnot(None),
+            TopicRevision.country != "",
+            TopicRevision.edit_summary == "Initial generation",
+        )
+        .group_by(TopicRevision.country)
+        .order_by(sqlfunc.count(TopicRevision.id).desc())
+        .limit(limit)
+    )
+    return [
+        {
+            "country": row.country,
+            "country_name": country_name(row.country) or row.country,
+            "country_flag": country_flag(row.country),
+            "count": row.count,
+        }
+        for row in result
+    ]
 
 
 async def get_discover_facets(db: AsyncSession) -> dict:
